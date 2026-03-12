@@ -26,9 +26,10 @@ export function runComplianceChecks(
     }
 
     const patchContent = file.patch ?? "";
+    const lowerPatchContent = patchContent.toLowerCase();
 
     for (const bannedContentIndicator of defaultRules.bannedContentIndicators) {
-      if (patchContent.includes(bannedContentIndicator)) {
+      if (lowerPatchContent.includes(bannedContentIndicator.toLowerCase())) {
         violations.push({
           type: "content",
           fileName: file.filename,
