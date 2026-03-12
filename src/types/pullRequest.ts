@@ -4,6 +4,7 @@ export interface PullRequestFileSummary {
   additions: number;
   deletions: number;
   changes: number;
+  patch?: string;
 }
 
 export interface PullRequestInspectionResult {
