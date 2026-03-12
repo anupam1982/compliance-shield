@@ -28,7 +28,8 @@ export async function inspectPullRequestFiles(
     status: file.status,
     additions: file.additions,
     deletions: file.deletions,
-    changes: file.changes
+    changes: file.changes,
+    patch: file.patch ?? ""
   }));
 
   const totalAdditions = files.reduce((sum, file) => sum + file.additions, 0);
