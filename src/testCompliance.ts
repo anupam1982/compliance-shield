@@ -1,2 +1,2 @@
 // Intentional test violations for Compliance Shield
-const marker = "TODO_SECRET";
+const markerText = "TODO_SECRET";
