@@ -1,0 +1,12 @@
+bannedFileIndicators:
+  - .pem
+  - .pfx
+  - .key
+
+bannedContentIndicators:
+  - MD5
+  - DES
+  - password=
+  - api_key
+  - secret
+  - private_key
