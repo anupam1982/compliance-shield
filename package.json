@@ -5,15 +5,17 @@
     "description": "GitHub Compliance Shield App",
     "main": "lib/app.js",
     "scripts": {
-      "build": "tsc",
-      "start": "npm run build && probot run ./lib/app.js"
+        "build": "tsc",
+        "start": "npm run build && probot run ./lib/app.js"
     },
     "dependencies": {
-      "dotenv": "^16.4.0",
-      "probot": "^13.0.0"
+        "dotenv": "^16.4.0",
+        "js-yaml": "^4.1.1",
+        "probot": "^13.0.0"
     },
     "devDependencies": {
-      "@types/node": "^20.0.0",
-      "typescript": "^5.6.0"
+        "@types/js-yaml": "^4.0.9",
+        "@types/node": "^20.0.0",
+        "typescript": "^5.6.0"
     }
-  }
+}

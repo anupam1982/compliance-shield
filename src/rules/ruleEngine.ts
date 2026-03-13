@@ -1,5 +1,4 @@
-import { ComplianceViolation } from "../types/rules";
-import { defaultRules } from "./defaultRules";
+import { ComplianceRuleSet, ComplianceViolation } from "../types/rules";
 
 export interface PullRequestFileForScan {
   filename: string;
@@ -7,14 +6,15 @@ export interface PullRequestFileForScan {
 }
 
 export function runComplianceChecks(
-  files: PullRequestFileForScan[]
+  files: PullRequestFileForScan[],
+  rules: ComplianceRuleSet
 ): ComplianceViolation[] {
   const violations: ComplianceViolation[] = [];
 
   for (const file of files) {
     const lowerFileName = file.filename.toLowerCase();
 
-    for (const bannedFileIndicator of defaultRules.bannedFileIndicators) {
+    for (const bannedFileIndicator of rules.bannedFileIndicators) {
       if (lowerFileName.includes(bannedFileIndicator.toLowerCase())) {
         violations.push({
           type: "file",
@@ -26,10 +26,9 @@ export function runComplianceChecks(
     }
 
     const patchContent = file.patch ?? "";
-    const lowerPatchContent = patchContent.toLowerCase();
 
-    for (const bannedContentIndicator of defaultRules.bannedContentIndicators) {
-      if (lowerPatchContent.includes(bannedContentIndicator.toLowerCase())) {
+    for (const bannedContentIndicator of rules.bannedContentIndicators) {
+      if (patchContent.includes(bannedContentIndicator)) {
         violations.push({
           type: "content",
           fileName: file.filename,
