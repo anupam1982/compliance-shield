@@ -4,10 +4,6 @@ import { handlePullRequest } from "./handlers/pullRequestHandler";
 
 dotenv.config();
 
-const hash = "MD5";
-const api_key = "123";
-const api_key2 = "123dsfa";
-
 type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
 
 export default (app: Probot): void => {
