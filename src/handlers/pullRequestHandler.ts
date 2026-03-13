@@ -1,6 +1,7 @@
 import { Context } from "probot";
 import { inspectPullRequestFiles } from "./prFileInspector";
 import { runComplianceChecks } from "../rules/ruleEngine";
+import { reportCheckRun } from "./checkRunReporter";
 
 type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
 
@@ -35,9 +36,9 @@ export async function handlePullRequest(
           .join("\n");
 
   const body = `
-🛡️ **Compliance Shield – Phase 3**
+🛡️ **Compliance Shield – Phase 4**
 
-I inspected this pull request and ran the first compliance checks.
+I inspected this pull request and ran the current compliance checks.
 
 - **PR:** #${pr.number}
 - **Title:** ${pr.title}
@@ -60,4 +61,6 @@ ${violationSection}
     issue_number: pr.number,
     body
   });
+
+  await reportCheckRun(context, violations);
 }
