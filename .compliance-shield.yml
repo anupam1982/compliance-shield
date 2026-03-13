@@ -10,3 +10,4 @@ bannedContentIndicators:
   - api_key
   - secret
   - private_key
+  - TODO_SECRET
