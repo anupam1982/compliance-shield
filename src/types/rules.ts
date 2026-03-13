@@ -29,4 +29,5 @@ export interface ComplianceViolation {
   indicator: string;
   severity: SeverityLevel;
   message: string;
+  line?: number;
 }

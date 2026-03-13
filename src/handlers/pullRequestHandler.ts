@@ -32,16 +32,16 @@ export async function handlePullRequest(
     violations.length === 0
       ? "✅ No compliance violations detected."
       : violations
-          .map(
-            (violation, index) =>
-              `${index + 1}. **${violation.severity.toUpperCase()}** **${violation.type.toUpperCase()}** in \`${violation.fileName}\` — ${violation.message}`
-          )
+          .map((violation, index) => {
+            const location = violation.line ? ` (line ${violation.line})` : "";
+            return `${index + 1}. **${violation.severity.toUpperCase()}** **${violation.type.toUpperCase()}** in \`${violation.fileName}\`${location} — ${violation.message}`;
+          })
           .join("\n");
 
   const body = `
-🛡️ **Compliance Shield – Phase 7**
+🛡️ **Compliance Shield – Phase 8**
 
-I inspected this pull request using severity-aware compliance rules.
+I inspected this pull request using severity-aware compliance rules and inline annotations.
 
 - **PR:** #${pr.number}
 - **Title:** ${pr.title}
@@ -52,11 +52,6 @@ I inspected this pull request using severity-aware compliance rules.
 - **Violations found:** ${violations.length}
 - **Minimum severity to fail:** ${config.minimumSeverityToFail.toUpperCase()}
 - **PR status:** ${isBlocking ? "❌ BLOCKING" : "✅ PASSING"}
-
-### Active rules
-- **Banned file indicators:** ${config.bannedFileIndicators.map((rule) => `${rule.value} (${rule.severity})`).join(", ") || "None"}
-- **Banned content indicators:** ${config.bannedContentIndicators.map((rule) => `${rule.value} (${rule.severity})`).join(", ") || "None"}
-- **Secret patterns:** ${config.secretPatterns.map((rule) => `${rule.name} (${rule.severity})`).join(", ") || "None"}
 
 ### Changed files
 ${fileList || "- No files found"}
@@ -73,12 +68,14 @@ ${violationSection}
       body
     });
   } catch (error) {
+    context.log.error("Failed to create PR comment");
     context.log.error(error);
   }
 
   try {
     await reportCheckRun(context, violations, config.minimumSeverityToFail);
   } catch (error) {
+    context.log.error("Failed to create check run");
     context.log.error(error);
   }
 }

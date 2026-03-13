@@ -4,6 +4,21 @@ import { hasBlockingViolations } from "../rules/ruleEngine";
 
 type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
 
+function mapSeverityToAnnotationLevel(
+  severity: SeverityLevel
+): "notice" | "warning" | "failure" {
+  switch (severity) {
+    case "low":
+      return "notice";
+    case "medium":
+      return "warning";
+    case "high":
+      return "failure";
+    case "critical":
+      return "failure";
+  }
+}
+
 export async function reportCheckRun(
   context: Context<PullRequestEventName>,
   violations: ComplianceViolation[],
@@ -37,6 +52,18 @@ export async function reportCheckRun(
           )
           .join("\n");
 
+  const annotations = violations
+    .filter((violation) => violation.line && violation.line > 0)
+    .slice(0, 50)
+    .map((violation) => ({
+      path: violation.fileName,
+      start_line: violation.line as number,
+      end_line: violation.line as number,
+      annotation_level: mapSeverityToAnnotationLevel(violation.severity),
+      message: violation.message,
+      title: `${violation.severity.toUpperCase()} - ${violation.indicator}`
+    }));
+
   await context.octokit.checks.create({
     owner,
     repo: repoName,
@@ -46,7 +73,8 @@ export async function reportCheckRun(
     conclusion,
     output: {
       title,
-      summary
+      summary,
+      annotations
     }
   });
 }

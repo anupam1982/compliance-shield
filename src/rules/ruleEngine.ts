@@ -26,6 +26,44 @@ export function hasBlockingViolations(
   return violations.some((violation) => getSeverityRank(violation.severity) >= threshold);
 }
 
+function findMatchingLineNumber(
+  patch: string,
+  matcher: (line: string) => boolean
+): number | undefined {
+  const lines = patch.split("\n");
+
+  let currentNewLine = 0;
+
+  for (const line of lines) {
+    if (line.startsWith("@@")) {
+      const match = line.match(/\+(\d+)(?:,(\d+))?/);
+      if (match) {
+        currentNewLine = Number.parseInt(match[1], 10) - 1;
+      }
+      continue;
+    }
+
+    if (line.startsWith("+") && !line.startsWith("+++")) {
+      currentNewLine += 1;
+
+      const content = line.slice(1);
+      if (matcher(content)) {
+        return currentNewLine;
+      }
+
+      continue;
+    }
+
+    if (line.startsWith("-") && !line.startsWith("---")) {
+      continue;
+    }
+
+    currentNewLine += 1;
+  }
+
+  return undefined;
+}
+
 export function runComplianceChecks(
   files: PullRequestFileForScan[],
   rules: ComplianceRuleSet
@@ -51,12 +89,17 @@ export function runComplianceChecks(
 
     for (const indicatorRule of rules.bannedContentIndicators) {
       if (patchContent.includes(indicatorRule.value)) {
+        const line = findMatchingLineNumber(patchContent, (contentLine) =>
+          contentLine.includes(indicatorRule.value)
+        );
+
         violations.push({
           type: "content",
           fileName: file.filename,
           indicator: indicatorRule.value,
           severity: indicatorRule.severity,
-          message: `Patch content contains banned indicator \`${indicatorRule.value}\`.`
+          message: `Patch content contains banned indicator \`${indicatorRule.value}\`.`,
+          line
         });
       }
     }
@@ -67,12 +110,18 @@ export function runComplianceChecks(
         const matches = patchContent.match(regex);
 
         if (matches && matches.length > 0) {
+          const line = findMatchingLineNumber(patchContent, (contentLine) => {
+            const lineRegex = new RegExp(secretPattern.pattern);
+            return lineRegex.test(contentLine);
+          });
+
           violations.push({
             type: "secret-pattern",
             fileName: file.filename,
             indicator: secretPattern.name,
             severity: secretPattern.severity,
-            message: `Patch content matched secret pattern \`${secretPattern.name}\`.`
+            message: `Patch content matched secret pattern \`${secretPattern.name}\`.`,
+            line
           });
         }
       } catch {
