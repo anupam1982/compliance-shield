@@ -37,6 +37,29 @@ export function runComplianceChecks(
         });
       }
     }
+
+    for (const secretPattern of rules.secretPatterns) {
+      try {
+        const regex = new RegExp(secretPattern.pattern, "g");
+        const matches = patchContent.match(regex);
+
+        if (matches && matches.length > 0) {
+          violations.push({
+            type: "secret-pattern",
+            fileName: file.filename,
+            indicator: secretPattern.name,
+            message: `Patch content matched secret pattern \`${secretPattern.name}\`.`
+          });
+        }
+      } catch {
+        violations.push({
+          type: "secret-pattern",
+          fileName: file.filename,
+          indicator: secretPattern.name,
+          message: `Invalid regex pattern configured for \`${secretPattern.name}\`.`
+        });
+      }
+    }
   }
 
   return violations;

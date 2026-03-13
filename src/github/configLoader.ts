@@ -1,9 +1,32 @@
 import { Context } from "probot";
 import yaml from "js-yaml";
 import { defaultRules } from "../rules/defaultRules";
-import { ComplianceRuleSet } from "../types/rules";
+import { ComplianceRuleSet, SecretPatternRule } from "../types/rules";
 
 type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
+
+function normalizeSecretPatterns(value: unknown): SecretPatternRule[] {
+  if (!Array.isArray(value)) {
+    return defaultRules.secretPatterns;
+  }
+
+  const validPatterns = value
+    .filter(
+      (item): item is SecretPatternRule =>
+        typeof item === "object" &&
+        item !== null &&
+        "name" in item &&
+        "pattern" in item &&
+        typeof (item as SecretPatternRule).name === "string" &&
+        typeof (item as SecretPatternRule).pattern === "string"
+    )
+    .map((item) => ({
+      name: item.name,
+      pattern: item.pattern
+    }));
+
+  return validPatterns.length > 0 ? validPatterns : defaultRules.secretPatterns;
+}
 
 export async function loadComplianceConfig(
   context: Context<PullRequestEventName>
@@ -37,7 +60,8 @@ export async function loadComplianceConfig(
       bannedContentIndicators:
         parsed?.bannedContentIndicators && Array.isArray(parsed.bannedContentIndicators)
           ? parsed.bannedContentIndicators.map(String)
-          : defaultRules.bannedContentIndicators
+          : defaultRules.bannedContentIndicators,
+      secretPatterns: normalizeSecretPatterns(parsed?.secretPatterns)
     };
 
     context.log.info("Loaded compliance rules from .compliance-shield.yml");

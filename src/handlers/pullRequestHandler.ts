@@ -46,10 +46,10 @@ export async function handlePullRequest(
           )
           .join("\n");
 
-  const body = `
-🛡️ **Compliance Shield – Phase 5**
+    const body = `
+🛡️ **Compliance Shield – Phase 6**
 
-I inspected this pull request using repository-configured compliance rules.
+I inspected this pull request using repository-configured compliance and secret-detection rules.
 
 - **PR:** #${pr.number}
 - **Title:** ${pr.title}
@@ -62,6 +62,7 @@ I inspected this pull request using repository-configured compliance rules.
 ### Active rules
 - **Banned file indicators:** ${config.bannedFileIndicators.join(", ") || "None"}
 - **Banned content indicators:** ${config.bannedContentIndicators.join(", ") || "None"}
+- **Secret patterns:** ${config.secretPatterns.map((rule) => rule.name).join(", ") || "None"}
 
 ### Changed files
 ${fileList || "- No files found"}
