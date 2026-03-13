@@ -8,6 +8,8 @@ const hash = "MD5";
 const api_key = "123";
 const hash2 = "MD5";
 const api_key2 = "456";
+const hash3 = "MD5";
+const api_key3 = "789";
 
 type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
 
