@@ -1,8 +1,29 @@
-import { ComplianceRuleSet, ComplianceViolation } from "../types/rules";
+import { ComplianceRuleSet, ComplianceViolation, SeverityLevel } from "../types/rules";
 
 export interface PullRequestFileForScan {
   filename: string;
   patch?: string;
+}
+
+export function getSeverityRank(severity: SeverityLevel): number {
+  switch (severity) {
+    case "low":
+      return 1;
+    case "medium":
+      return 2;
+    case "high":
+      return 3;
+    case "critical":
+      return 4;
+  }
+}
+
+export function hasBlockingViolations(
+  violations: ComplianceViolation[],
+  minimumSeverityToFail: SeverityLevel
+): boolean {
+  const threshold = getSeverityRank(minimumSeverityToFail);
+  return violations.some((violation) => getSeverityRank(violation.severity) >= threshold);
 }
 
 export function runComplianceChecks(
@@ -14,26 +35,28 @@ export function runComplianceChecks(
   for (const file of files) {
     const lowerFileName = file.filename.toLowerCase();
 
-    for (const bannedFileIndicator of rules.bannedFileIndicators) {
-      if (lowerFileName.includes(bannedFileIndicator.toLowerCase())) {
+    for (const indicatorRule of rules.bannedFileIndicators) {
+      if (lowerFileName.includes(indicatorRule.value.toLowerCase())) {
         violations.push({
           type: "file",
           fileName: file.filename,
-          indicator: bannedFileIndicator,
-          message: `Filename contains banned indicator \`${bannedFileIndicator}\`.`
+          indicator: indicatorRule.value,
+          severity: indicatorRule.severity,
+          message: `Filename contains banned indicator \`${indicatorRule.value}\`.`
         });
       }
     }
 
     const patchContent = file.patch ?? "";
 
-    for (const bannedContentIndicator of rules.bannedContentIndicators) {
-      if (patchContent.includes(bannedContentIndicator)) {
+    for (const indicatorRule of rules.bannedContentIndicators) {
+      if (patchContent.includes(indicatorRule.value)) {
         violations.push({
           type: "content",
           fileName: file.filename,
-          indicator: bannedContentIndicator,
-          message: `Patch content contains banned indicator \`${bannedContentIndicator}\`.`
+          indicator: indicatorRule.value,
+          severity: indicatorRule.severity,
+          message: `Patch content contains banned indicator \`${indicatorRule.value}\`.`
         });
       }
     }
@@ -48,6 +71,7 @@ export function runComplianceChecks(
             type: "secret-pattern",
             fileName: file.filename,
             indicator: secretPattern.name,
+            severity: secretPattern.severity,
             message: `Patch content matched secret pattern \`${secretPattern.name}\`.`
           });
         }
@@ -56,6 +80,7 @@ export function runComplianceChecks(
           type: "secret-pattern",
           fileName: file.filename,
           indicator: secretPattern.name,
+          severity: "medium",
           message: `Invalid regex pattern configured for \`${secretPattern.name}\`.`
         });
       }

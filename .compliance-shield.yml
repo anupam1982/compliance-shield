@@ -1,28 +1,36 @@
+minimumSeverityToFail: high
+
 bannedFileIndicators:
-  - .pem
-  - .pfx
-  - .key
+  - value: .pem
+    severity: high
+  - value: .pfx
+    severity: high
+  - value: .key
+    severity: medium
 
 bannedContentIndicators:
-  - MD5
-  - DES
-  - password=
-  - api_key
-  - secret
-  - private_key
+  - value: MD5
+    severity: medium
+  - value: DES
+    severity: high
+  - value: password=
+    severity: high
+  - value: api_key
+    severity: high
+  - value: secret
+    severity: medium
+  - value: TODO_SECRET
+    severity: low
 
 secretPatterns:
-  - name: AWS Access Key
-    pattern: AKIA[0-9A-Z]{16}
+  - name: Demo AWS Pattern
+    pattern: TEST_AWS_KEY_[A-Z0-9]+
+    severity: critical
 
-  - name: GitHub Personal Access Token
-    pattern: ghp_[A-Za-z0-9]{36,}
+  - name: Demo Token Pattern
+    pattern: TEST_TOKEN_[A-Za-z0-9]+
+    severity: high
 
-  - name: Private Key Block
-    pattern: '-----BEGIN [A-Z ]*PRIVATE KEY-----'
-
-  - name: Stripe Live Secret Key
-    pattern: sk_live_[A-Za-z0-9]{16,}
-
-  - name: JWT Token
-    pattern: eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9._-]+\.[A-Za-z0-9._-]+
+  - name: Demo JWT Pattern
+    pattern: DEMO_JWT_[A-Za-z0-9._-]+
+    severity: medium

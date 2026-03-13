@@ -1,6 +1,6 @@
 import { Context } from "probot";
 import { inspectPullRequestFiles } from "./prFileInspector";
-import { runComplianceChecks } from "../rules/ruleEngine";
+import { runComplianceChecks, hasBlockingViolations } from "../rules/ruleEngine";
 import { reportCheckRun } from "./checkRunReporter";
 import { loadComplianceConfig } from "../github/configLoader";
 
@@ -15,18 +15,10 @@ export async function handlePullRequest(
   const owner = repo.owner.login;
   const repoName = repo.name;
 
-  context.log.info(`Handling PR #${pr.number} in ${owner}/${repoName}`);
-
   const config = await loadComplianceConfig(context);
-  context.log.info(
-    `Loaded config: ${config.bannedFileIndicators.length} file rule(s), ${config.bannedContentIndicators.length} content rule(s)`
-  );
-
   const inspectionResult = await inspectPullRequestFiles(context);
-  context.log.info(`Inspected ${inspectionResult.totalFiles} file(s)`);
-
   const violations = runComplianceChecks(inspectionResult.files, config);
-  context.log.info(`Found ${violations.length} violation(s)`);
+  const isBlocking = hasBlockingViolations(violations, config.minimumSeverityToFail);
 
   const fileList = inspectionResult.files
     .slice(0, 20)
@@ -38,18 +30,18 @@ export async function handlePullRequest(
 
   const violationSection =
     violations.length === 0
-      ? "✅ No compliance violations detected in this phase."
+      ? "✅ No compliance violations detected."
       : violations
           .map(
             (violation, index) =>
-              `${index + 1}. **${violation.type.toUpperCase()}** in \`${violation.fileName}\` — ${violation.message}`
+              `${index + 1}. **${violation.severity.toUpperCase()}** **${violation.type.toUpperCase()}** in \`${violation.fileName}\` — ${violation.message}`
           )
           .join("\n");
 
-    const body = `
-🛡️ **Compliance Shield – Phase 6**
+  const body = `
+🛡️ **Compliance Shield – Phase 7**
 
-I inspected this pull request using repository-configured compliance and secret-detection rules.
+I inspected this pull request using severity-aware compliance rules.
 
 - **PR:** #${pr.number}
 - **Title:** ${pr.title}
@@ -58,11 +50,13 @@ I inspected this pull request using repository-configured compliance and secret-
 - **Lines added:** ${inspectionResult.totalAdditions}
 - **Lines removed:** ${inspectionResult.totalDeletions}
 - **Violations found:** ${violations.length}
+- **Minimum severity to fail:** ${config.minimumSeverityToFail.toUpperCase()}
+- **PR status:** ${isBlocking ? "❌ BLOCKING" : "✅ PASSING"}
 
 ### Active rules
-- **Banned file indicators:** ${config.bannedFileIndicators.join(", ") || "None"}
-- **Banned content indicators:** ${config.bannedContentIndicators.join(", ") || "None"}
-- **Secret patterns:** ${config.secretPatterns.map((rule) => rule.name).join(", ") || "None"}
+- **Banned file indicators:** ${config.bannedFileIndicators.map((rule) => `${rule.value} (${rule.severity})`).join(", ") || "None"}
+- **Banned content indicators:** ${config.bannedContentIndicators.map((rule) => `${rule.value} (${rule.severity})`).join(", ") || "None"}
+- **Secret patterns:** ${config.secretPatterns.map((rule) => `${rule.name} (${rule.severity})`).join(", ") || "None"}
 
 ### Changed files
 ${fileList || "- No files found"}
@@ -72,25 +66,19 @@ ${violationSection}
 `;
 
   try {
-    context.log.info("Creating PR comment");
     await context.octokit.issues.createComment({
       owner,
       repo: repoName,
       issue_number: pr.number,
       body
     });
-    context.log.info("PR comment created successfully");
   } catch (error) {
-    context.log.error("Failed to create PR comment");
     context.log.error(error);
   }
 
   try {
-    context.log.info("Creating check run");
-    await reportCheckRun(context, violations);
-    context.log.info("Check run created successfully");
+    await reportCheckRun(context, violations, config.minimumSeverityToFail);
   } catch (error) {
-    context.log.error("Failed to create check run");
     context.log.error(error);
   }
 }

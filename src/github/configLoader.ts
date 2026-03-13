@@ -1,31 +1,111 @@
 import { Context } from "probot";
 import yaml from "js-yaml";
 import { defaultRules } from "../rules/defaultRules";
-import { ComplianceRuleSet, SecretPatternRule } from "../types/rules";
+import {
+  ComplianceRuleSet,
+  ContentIndicatorRule,
+  FileIndicatorRule,
+  SecretPatternRule,
+  SeverityLevel
+} from "../types/rules";
 
 type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
+
+const validSeverityLevels: SeverityLevel[] = ["low", "medium", "high", "critical"];
+
+function normalizeSeverity(value: unknown, fallback: SeverityLevel): SeverityLevel {
+  return typeof value === "string" && validSeverityLevels.includes(value as SeverityLevel)
+    ? (value as SeverityLevel)
+    : fallback;
+}
+
+function normalizeFileIndicators(value: unknown): FileIndicatorRule[] {
+  if (!Array.isArray(value)) {
+    return defaultRules.bannedFileIndicators;
+  }
+
+  const normalized = value
+    .map((item) => {
+      if (typeof item === "string") {
+        return { value: item, severity: "high" as SeverityLevel };
+      }
+
+      if (
+        typeof item === "object" &&
+        item !== null &&
+        "value" in item &&
+        typeof (item as FileIndicatorRule).value === "string"
+      ) {
+        return {
+          value: (item as FileIndicatorRule).value,
+          severity: normalizeSeverity((item as FileIndicatorRule).severity, "high")
+        };
+      }
+
+      return null;
+    })
+    .filter((item): item is FileIndicatorRule => item !== null);
+
+  return normalized.length > 0 ? normalized : defaultRules.bannedFileIndicators;
+}
+
+function normalizeContentIndicators(value: unknown): ContentIndicatorRule[] {
+  if (!Array.isArray(value)) {
+    return defaultRules.bannedContentIndicators;
+  }
+
+  const normalized = value
+    .map((item) => {
+      if (typeof item === "string") {
+        return { value: item, severity: "medium" as SeverityLevel };
+      }
+
+      if (
+        typeof item === "object" &&
+        item !== null &&
+        "value" in item &&
+        typeof (item as ContentIndicatorRule).value === "string"
+      ) {
+        return {
+          value: (item as ContentIndicatorRule).value,
+          severity: normalizeSeverity((item as ContentIndicatorRule).severity, "medium")
+        };
+      }
+
+      return null;
+    })
+    .filter((item): item is ContentIndicatorRule => item !== null);
+
+  return normalized.length > 0 ? normalized : defaultRules.bannedContentIndicators;
+}
 
 function normalizeSecretPatterns(value: unknown): SecretPatternRule[] {
   if (!Array.isArray(value)) {
     return defaultRules.secretPatterns;
   }
 
-  const validPatterns = value
-    .filter(
-      (item): item is SecretPatternRule =>
+  const normalized = value
+    .map((item) => {
+      if (
         typeof item === "object" &&
         item !== null &&
         "name" in item &&
         "pattern" in item &&
         typeof (item as SecretPatternRule).name === "string" &&
         typeof (item as SecretPatternRule).pattern === "string"
-    )
-    .map((item) => ({
-      name: item.name,
-      pattern: item.pattern
-    }));
+      ) {
+        return {
+          name: (item as SecretPatternRule).name,
+          pattern: (item as SecretPatternRule).pattern,
+          severity: normalizeSeverity((item as SecretPatternRule).severity, "critical")
+        };
+      }
 
-  return validPatterns.length > 0 ? validPatterns : defaultRules.secretPatterns;
+      return null;
+    })
+    .filter((item): item is SecretPatternRule => item !== null);
+
+  return normalized.length > 0 ? normalized : defaultRules.secretPatterns;
 }
 
 export async function loadComplianceConfig(
@@ -36,8 +116,6 @@ export async function loadComplianceConfig(
   const repoName = repo.name;
 
   try {
-    context.log.info("Loading .compliance-shield.yml from repository");
-
     const response = await context.octokit.repos.getContent({
       owner,
       repo: repoName,
@@ -45,36 +123,23 @@ export async function loadComplianceConfig(
     });
 
     if (!("content" in response.data)) {
-      context.log.warn("Config file found but no content available, using default rules");
       return defaultRules;
     }
 
     const decodedContent = Buffer.from(response.data.content, "base64").toString("utf-8");
     const parsed = yaml.load(decodedContent) as Partial<ComplianceRuleSet> | undefined;
 
-    const config: ComplianceRuleSet = {
-      bannedFileIndicators:
-        parsed?.bannedFileIndicators && Array.isArray(parsed.bannedFileIndicators)
-          ? parsed.bannedFileIndicators.map(String)
-          : defaultRules.bannedFileIndicators,
-      bannedContentIndicators:
-        parsed?.bannedContentIndicators && Array.isArray(parsed.bannedContentIndicators)
-          ? parsed.bannedContentIndicators.map(String)
-          : defaultRules.bannedContentIndicators,
-      secretPatterns: normalizeSecretPatterns(parsed?.secretPatterns)
+    return {
+      bannedFileIndicators: normalizeFileIndicators(parsed?.bannedFileIndicators),
+      bannedContentIndicators: normalizeContentIndicators(parsed?.bannedContentIndicators),
+      secretPatterns: normalizeSecretPatterns(parsed?.secretPatterns),
+      minimumSeverityToFail: normalizeSeverity(parsed?.minimumSeverityToFail, "high")
     };
-
-    context.log.info("Loaded compliance rules from .compliance-shield.yml");
-    return config;
   } catch (error: unknown) {
     const err = error as { status?: number };
-
     if (err.status === 404) {
-      context.log.info("No .compliance-shield.yml found, using default rules");
       return defaultRules;
     }
-
-    context.log.error("Failed to load config file, using default rules");
     context.log.error(error);
     return defaultRules;
   }
