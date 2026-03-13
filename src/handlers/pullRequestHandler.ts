@@ -14,8 +14,13 @@ export async function handlePullRequest(
   const owner = repo.owner.login;
   const repoName = repo.name;
 
+  context.log.info(`Handling PR #${pr.number} in ${owner}/${repoName}`);
+
   const inspectionResult = await inspectPullRequestFiles(context);
+  context.log.info(`Inspected ${inspectionResult.totalFiles} file(s)`);
+
   const violations = runComplianceChecks(inspectionResult.files);
+  context.log.info(`Found ${violations.length} violation(s)`);
 
   const fileList = inspectionResult.files
     .slice(0, 20)
@@ -55,12 +60,26 @@ ${fileList || "- No files found"}
 ${violationSection}
 `;
 
-  await context.octokit.issues.createComment({
-    owner,
-    repo: repoName,
-    issue_number: pr.number,
-    body
-  });
+  try {
+    context.log.info("Creating PR comment");
+    await context.octokit.issues.createComment({
+      owner,
+      repo: repoName,
+      issue_number: pr.number,
+      body
+    });
+    context.log.info("PR comment created successfully");
+  } catch (error) {
+    context.log.error("Failed to create PR comment");
+    context.log.error(error);
+  }
 
-  await reportCheckRun(context, violations);
+  try {
+    context.log.info("Creating check run");
+    await reportCheckRun(context, violations);
+    context.log.info("Check run created successfully");
+  } catch (error) {
+    context.log.error("Failed to create check run");
+    context.log.error(error);
+  }
 }
