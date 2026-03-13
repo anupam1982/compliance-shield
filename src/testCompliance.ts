@@ -1,6 +1,6 @@
 // Intentional test violations for Compliance Shield
 
-const password = "demo123";
+const password = "demo1234";
 
 const api_key = "test_api_key";
 
