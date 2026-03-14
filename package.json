@@ -6,7 +6,8 @@
     "main": "lib/app.js",
     "scripts": {
         "build": "tsc",
-        "start": "npm run build && probot run ./lib/app.js"
+        "start": "npm run build && probot run ./lib/app.js",
+        "scheduled-scan": "npm run build && node ./lib/scripts/runScheduledScan.js"
     },
     "dependencies": {
         "dotenv": "^16.4.0",

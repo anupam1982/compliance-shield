@@ -1,0 +1,32 @@
+name: Compliance Shield Scheduled Scan
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  scheduled-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run scheduled Compliance Shield scan
+        env:
+          APP_ID: ${{ secrets.COMPLIANCE_SHIELD_APP_ID }}
+          PRIVATE_KEY: ${{ secrets.COMPLIANCE_SHIELD_PRIVATE_KEY }}
+          WEBHOOK_SECRET: ${{ secrets.COMPLIANCE_SHIELD_WEBHOOK_SECRET }}
+          SCHEDULED_SCAN_OWNER: ${{ github.repository_owner }}
+          SCHEDULED_SCAN_REPO: ${{ github.event.repository.name || github.event.repository.name }}
+          SCHEDULED_SCAN_DEFAULT_BRANCH: main
+        run: npm run scheduled-scan

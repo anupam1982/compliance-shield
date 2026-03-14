@@ -1,6 +1,6 @@
 export interface ScanState {
   lastUpdatedAt: string;
-  lastScanType: "pr" | "repo";
+  lastScanType: "pr" | "repo" | "scheduled";
   lastPrNumber?: number;
   lastScanMode: string;
   lastViolationsFound: number;
