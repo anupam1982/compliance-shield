@@ -1,10 +1,9 @@
 import { Context } from "probot";
 import { ComplianceRuleSet } from "../types/rules";
 import { RepositoryScanResult, RepositoryFileToScan } from "../types/repositoryScan";
+import { RepositoryContextInfo } from "../types/githubContext";
 import { isLikelyTextFile } from "../utils/contentClassifier";
 import { runRepositoryComplianceChecks } from "../rules/ruleEngine";
-
-type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
 
 interface GitHubTreeItem {
   path: string;
@@ -12,14 +11,13 @@ interface GitHubTreeItem {
 }
 
 async function getRepositoryTree(
-  context: Context<PullRequestEventName>,
-  owner: string,
-  repo: string,
+  context: Context,
+  repoInfo: RepositoryContextInfo,
   treeSha: string
 ): Promise<GitHubTreeItem[]> {
   const response = await context.octokit.git.getTree({
-    owner,
-    repo,
+    owner: repoInfo.owner,
+    repo: repoInfo.repo,
     tree_sha: treeSha,
     recursive: "true"
   });
@@ -33,31 +31,28 @@ async function getRepositoryTree(
 }
 
 async function getDefaultBranchSha(
-  context: Context<PullRequestEventName>,
-  owner: string,
-  repo: string,
-  branch: string
+  context: Context,
+  repoInfo: RepositoryContextInfo
 ): Promise<string> {
   const response = await context.octokit.repos.getBranch({
-    owner,
-    repo,
-    branch
+    owner: repoInfo.owner,
+    repo: repoInfo.repo,
+    branch: repoInfo.defaultBranch
   });
 
   return response.data.commit.sha;
 }
 
 async function getFileContent(
-  context: Context<PullRequestEventName>,
-  owner: string,
-  repo: string,
+  context: Context,
+  repoInfo: RepositoryContextInfo,
   path: string,
   ref: string
 ): Promise<string | undefined> {
   try {
     const response = await context.octokit.repos.getContent({
-      owner,
-      repo,
+      owner: repoInfo.owner,
+      repo: repoInfo.repo,
       path,
       ref
     });
@@ -75,16 +70,12 @@ async function getFileContent(
 }
 
 export async function scanRepository(
-  context: Context<PullRequestEventName>,
+  context: Context,
+  repoInfo: RepositoryContextInfo,
   rules: ComplianceRuleSet
 ): Promise<RepositoryScanResult> {
-  const repo = context.payload.repository;
-  const owner = repo.owner.login;
-  const repoName = repo.name;
-  const defaultBranch = repo.default_branch;
-
-  const branchSha = await getDefaultBranchSha(context, owner, repoName, defaultBranch);
-  const treeItems = await getRepositoryTree(context, owner, repoName, branchSha);
+  const branchSha = await getDefaultBranchSha(context, repoInfo);
+  const treeItems = await getRepositoryTree(context, repoInfo, branchSha);
 
   const filesToScan: RepositoryFileToScan[] = [];
   let skippedFiles = 0;
@@ -104,7 +95,12 @@ export async function scanRepository(
       continue;
     }
 
-    const content = await getFileContent(context, owner, repoName, item.path, defaultBranch);
+    const content = await getFileContent(
+      context,
+      repoInfo,
+      item.path,
+      repoInfo.defaultBranch
+    );
 
     if (content === undefined) {
       skippedFiles += 1;

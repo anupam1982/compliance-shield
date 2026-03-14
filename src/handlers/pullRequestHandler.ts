@@ -1,9 +1,6 @@
 import { Context } from "probot";
 import { inspectPullRequestFiles } from "./prFileInspector";
-import {
-  runComplianceChecks,
-  hasBlockingViolations
-} from "../rules/ruleEngine";
+import { runComplianceChecks, hasBlockingViolations } from "../rules/ruleEngine";
 import { reportCheckRun } from "./checkRunReporter";
 import { loadComplianceConfig } from "../github/configLoader";
 import { upsertPullRequestComment } from "./commentReporter";
@@ -12,6 +9,7 @@ import {
   formatViolationsForComment
 } from "../utils/violationFormatter";
 import { scanRepository } from "./repositoryScanner";
+import { RepositoryContextInfo } from "../types/githubContext";
 
 type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
 
@@ -21,10 +19,13 @@ export async function handlePullRequest(
   const pr = context.payload.pull_request;
   const repo = context.payload.repository;
 
-  const owner = repo.owner.login;
-  const repoName = repo.name;
+  const repoInfo: RepositoryContextInfo = {
+    owner: repo.owner.login,
+    repo: repo.name,
+    defaultBranch: repo.default_branch
+  };
 
-  const config = await loadComplianceConfig(context);
+  const config = await loadComplianceConfig(context, repoInfo);
   const shouldRunRepositoryScan = pr.title.includes("[scan-repo]");
 
   const inspectionResult = await inspectPullRequestFiles(context, config.scanMode);
@@ -45,7 +46,7 @@ export async function handlePullRequest(
 
   if (shouldRunRepositoryScan) {
     try {
-      const repositoryScanResult = await scanRepository(context, config);
+      const repositoryScanResult = await scanRepository(context, repoInfo, config);
 
       repositoryScanSummary = `
 ### Repository scan
@@ -73,9 +74,9 @@ export async function handlePullRequest(
   }
 
   const body = `
-🛡️ **Compliance Shield – Phase 15**
+🛡️ **Compliance Shield – Phase 16 Refactor**
 
-I inspected this pull request using policy packs, severity-aware rules, inline annotations, suppression controls, comment upsert behavior, configurable scan mode, deduplicated reporting, and optional repository scanning.
+I inspected this pull request using typed shared repo context, policy packs, severity-aware rules, inline annotations, suppression controls, comment upsert behavior, configurable scan mode, deduplicated reporting, and optional repository scanning.
 
 - **PR:** #${pr.number}
 - **Title:** ${pr.title}
@@ -108,7 +109,7 @@ ${formatViolationsForComment(violations)}
 `;
 
   try {
-    await upsertPullRequestComment(context, owner, repoName, pr.number, body);
+    await upsertPullRequestComment(context, repoInfo.owner, repoInfo.repo, pr.number, body);
   } catch (error) {
     context.log.error("Failed to create or update PR comment");
     context.log.error(error);

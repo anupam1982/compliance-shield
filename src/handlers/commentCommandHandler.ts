@@ -6,6 +6,7 @@ import {
   deduplicateViolations,
   formatViolationsForComment
 } from "../utils/violationFormatter";
+import { RepositoryContextInfo } from "../types/githubContext";
 
 type IssueCommentEventName = "issue_comment.created";
 
@@ -29,23 +30,22 @@ export async function handleCommentCommand(
 
   const repo = context.payload.repository;
   const issue = context.payload.issue;
-  const owner = repo.owner.login;
-  const repoName = repo.name;
+
+  const repoInfo: RepositoryContextInfo = {
+    owner: repo.owner.login,
+    repo: repo.name,
+    defaultBranch: repo.default_branch
+  };
 
   if (parsedCommand.command === "help") {
     await context.octokit.issues.createComment({
-      owner,
-      repo: repoName,
+      owner: repoInfo.owner,
+      repo: repoInfo.repo,
       issue_number: issue.number,
       body: `
 🛡️ **Compliance Shield Commands**
 
 Available commands:
-
-- \`/compliance-shield help\`
-- \`/compliance-shield scan-repo\`
-
-Examples:
 
 - \`/compliance-shield help\`
 - \`/compliance-shield scan-repo\`
@@ -57,8 +57,8 @@ Examples:
 
   if (parsedCommand.command === "unknown") {
     await context.octokit.issues.createComment({
-      owner,
-      repo: repoName,
+      owner: repoInfo.owner,
+      repo: repoInfo.repo,
       issue_number: issue.number,
       body: `
 🛡️ I did not recognize that command.
@@ -75,20 +75,20 @@ Try:
 
   if (parsedCommand.command === "scan-repo") {
     await context.octokit.issues.createComment({
-      owner,
-      repo: repoName,
+      owner: repoInfo.owner,
+      repo: repoInfo.repo,
       issue_number: issue.number,
       body: "🛡️ Compliance Shield is scanning the repository. Please wait..."
     });
 
     try {
-      const config = await loadComplianceConfig(context as never);
-      const repositoryScanResult = await scanRepository(context as never, config);
+      const config = await loadComplianceConfig(context, repoInfo);
+      const repositoryScanResult = await scanRepository(context, repoInfo, config);
       const violations = deduplicateViolations(repositoryScanResult.violations);
 
       await context.octokit.issues.createComment({
-        owner,
-        repo: repoName,
+        owner: repoInfo.owner,
+        repo: repoInfo.repo,
         issue_number: issue.number,
         body: `
 🛡️ **Compliance Shield Repository Scan Result**
@@ -108,8 +108,8 @@ ${formatViolationsForComment(violations)}
       context.log.error(error);
 
       await context.octokit.issues.createComment({
-        owner,
-        repo: repoName,
+        owner: repoInfo.owner,
+        repo: repoInfo.repo,
         issue_number: issue.number,
         body: "🛡️ Repository scan failed. Please check the app logs."
       });

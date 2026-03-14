@@ -1,5 +1,5 @@
-import { Context } from "probot";
 import yaml from "js-yaml";
+import { Context } from "probot";
 import { defaultRules } from "../rules/defaultRules";
 import { getPolicyPack } from "../rules/policyPacks";
 import {
@@ -12,8 +12,7 @@ import {
   SecretPatternRule,
   SeverityLevel
 } from "../types/rules";
-
-type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
+import { RepositoryContextInfo } from "../types/githubContext";
 
 const validSeverityLevels: SeverityLevel[] = ["low", "medium", "high", "critical"];
 const validScanModes: ScanMode[] = ["diff", "full-file"];
@@ -144,106 +143,85 @@ function normalizeSecretPatterns(
   return normalized.length > 0 ? normalized : fallback;
 }
 
+async function loadYamlConfigFile(
+  context: Context,
+  repoInfo: RepositoryContextInfo,
+  path: string
+): Promise<ComplianceConfigFile | undefined> {
+  try {
+    const response = await context.octokit.repos.getContent({
+      owner: repoInfo.owner,
+      repo: repoInfo.repo,
+      path
+    });
+
+    if (!("content" in response.data)) {
+      return undefined;
+    }
+
+    const decodedContent = Buffer.from(response.data.content, "base64").toString("utf-8");
+    return yaml.load(decodedContent) as ComplianceConfigFile;
+  } catch (error: unknown) {
+    const err = error as { status?: number };
+    if (err.status !== 404) {
+      context.log.error(error);
+    }
+    return undefined;
+  }
+}
+
 export async function loadComplianceConfig(
-  context: Context<PullRequestEventName>
+  context: Context,
+  repoInfo: RepositoryContextInfo
 ): Promise<ComplianceRuleSet> {
+  const orgConfig = await loadYamlConfigFile(
+    context,
+    repoInfo,
+    ".github/compliance-shield-org.yml"
+  );
 
-  const repo = context.payload.repository
-  const owner = repo.owner.login
-  const repoName = repo.name
+  const repoConfig = await loadYamlConfigFile(
+    context,
+    repoInfo,
+    ".compliance-shield.yml"
+  );
 
-  let orgConfig: ComplianceConfigFile | undefined
-  let repoConfig: ComplianceConfigFile | undefined
+  const selectedPolicy = normalizePolicy(repoConfig?.policy ?? orgConfig?.policy);
+  const baseRules = selectedPolicy ? getPolicyPack(selectedPolicy) : defaultRules;
 
-  // -------- load org config --------
-
-  try {
-    const orgResponse = await context.octokit.repos.getContent({
-      owner,
-      repo: repoName,
-      path: ".github/compliance-shield-org.yml"
-    })
-
-    if ("content" in orgResponse.data) {
-      const decoded = Buffer.from(orgResponse.data.content, "base64").toString("utf-8")
-      orgConfig = yaml.load(decoded) as ComplianceConfigFile
-    }
-
-  } catch (error) {
-    context.log.info("No org policy found")
-  }
-
-  // -------- load repo config --------
-
-  try {
-    const repoResponse = await context.octokit.repos.getContent({
-      owner,
-      repo: repoName,
-      path: ".compliance-shield.yml"
-    })
-
-    if ("content" in repoResponse.data) {
-      const decoded = Buffer.from(repoResponse.data.content, "base64").toString("utf-8")
-      repoConfig = yaml.load(decoded) as ComplianceConfigFile
-    }
-
-  } catch (error) {
-    context.log.info("No repo policy found")
-  }
-
-  // -------- determine policy pack --------
-
-  const selectedPolicy =
-    repoConfig?.policy ??
-    orgConfig?.policy ??
-    "baseline"
-
-  const baseRules = getPolicyPack(selectedPolicy)
-
-  // -------- merge rules --------
-
-  const finalRules: ComplianceRuleSet = {
-
-    bannedFileIndicators:
-      repoConfig?.bannedFileIndicators ??
-      orgConfig?.bannedFileIndicators ??
-      baseRules.bannedFileIndicators,
-
-    bannedContentIndicators:
-      repoConfig?.bannedContentIndicators ??
-      orgConfig?.bannedContentIndicators ??
-      baseRules.bannedContentIndicators,
-
-    secretPatterns:
-      repoConfig?.secretPatterns ??
-      orgConfig?.secretPatterns ??
-      baseRules.secretPatterns,
-
-    minimumSeverityToFail:
-      repoConfig?.minimumSeverityToFail ??
-      orgConfig?.minimumSeverityToFail ??
-      baseRules.minimumSeverityToFail,
-
-    ignorePaths:
-      repoConfig?.ignorePaths ??
-      orgConfig?.ignorePaths ??
-      baseRules.ignorePaths,
-
-    ignoreIndicators:
-      repoConfig?.ignoreIndicators ??
-      orgConfig?.ignoreIndicators ??
-      baseRules.ignoreIndicators,
-
+  return {
+    bannedFileIndicators: normalizeFileIndicators(
+      repoConfig?.bannedFileIndicators ?? orgConfig?.bannedFileIndicators,
+      baseRules.bannedFileIndicators
+    ),
+    bannedContentIndicators: normalizeContentIndicators(
+      repoConfig?.bannedContentIndicators ?? orgConfig?.bannedContentIndicators,
+      baseRules.bannedContentIndicators
+    ),
+    secretPatterns: normalizeSecretPatterns(
+      repoConfig?.secretPatterns ?? orgConfig?.secretPatterns,
+      baseRules.secretPatterns
+    ),
+    minimumSeverityToFail: normalizeSeverity(
+      repoConfig?.minimumSeverityToFail ?? orgConfig?.minimumSeverityToFail,
+      baseRules.minimumSeverityToFail
+    ),
+    ignorePaths: normalizeStringArray(
+      repoConfig?.ignorePaths ?? orgConfig?.ignorePaths,
+      baseRules.ignorePaths
+    ),
+    ignoreIndicators: normalizeStringArray(
+      repoConfig?.ignoreIndicators ?? orgConfig?.ignoreIndicators,
+      baseRules.ignoreIndicators
+    ),
     inlineIgnoreComment:
-      repoConfig?.inlineIgnoreComment ??
-      orgConfig?.inlineIgnoreComment ??
-      baseRules.inlineIgnoreComment,
-
-    scanMode:
-      repoConfig?.scanMode ??
-      orgConfig?.scanMode ??
+      typeof (repoConfig?.inlineIgnoreComment ?? orgConfig?.inlineIgnoreComment) === "string" &&
+      (repoConfig?.inlineIgnoreComment ?? orgConfig?.inlineIgnoreComment)?.trim()
+        ? (repoConfig?.inlineIgnoreComment ?? orgConfig?.inlineIgnoreComment)!
+        : baseRules.inlineIgnoreComment,
+    scanMode: normalizeScanMode(
+      repoConfig?.scanMode ?? orgConfig?.scanMode,
       baseRules.scanMode
-  }
-
-  return finalRules
+    )
+  };
 }
