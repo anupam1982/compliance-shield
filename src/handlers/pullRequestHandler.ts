@@ -5,7 +5,7 @@ import { loadComplianceConfig } from "../github/configLoader";
 import { upsertPullRequestComment } from "./commentReporter";
 import { formatViolationsForComment } from "../utils/violationFormatter";
 import { RepositoryContextInfo } from "../types/githubContext";
-import { saveScanState } from "./scanStateStore";
+import { appendScanHistory, saveScanState } from "./scanStateStore";
 import { runPullRequestScan, runRepositoryScan } from "./scanService";
 import { inspectPullRequestFiles } from "./prFileInspector";
 
@@ -68,6 +68,17 @@ export async function handlePullRequest(
         lastSkippedFiles: repositoryScanResult.skippedFiles,
         lastTriggeredBy: pr.user.login
       });
+
+      await appendScanHistory(context, repoInfo, {
+        timestamp: new Date().toISOString(),
+        scanType: "repo",
+        prNumber: pr.number,
+        scanMode: config.scanMode,
+        violationsFound: repositoryScanResult.violations.length,
+        scannedFiles: repositoryScanResult.scannedFiles,
+        skippedFiles: repositoryScanResult.skippedFiles,
+        triggeredBy: pr.user.login
+      });
     } catch (error) {
       context.log.error("Failed to scan repository");
       context.log.error(error);
@@ -96,6 +107,17 @@ export async function handlePullRequest(
         lastSkippedFiles: prScanResult.skippedFiles,
         lastTriggeredBy: pr.user.login
       });
+
+      await appendScanHistory(context, repoInfo, {
+        timestamp: new Date().toISOString(),
+        scanType: "pr",
+        prNumber: pr.number,
+        scanMode: config.scanMode,
+        violationsFound: prScanResult.violations.length,
+        scannedFiles: prScanResult.scannedFiles,
+        skippedFiles: prScanResult.skippedFiles,
+        triggeredBy: pr.user.login
+      });
     } catch (error) {
       context.log.error("Failed to save PR scan state");
       context.log.error(error);
@@ -103,9 +125,9 @@ export async function handlePullRequest(
   }
 
   const body = `
-🛡️ **Compliance Shield – Phase 22**
+🛡️ **Compliance Shield – Phase 24**
 
-I inspected this pull request using a shared scan engine, policy packs, severity-aware rules, inline annotations, suppression controls, comment upsert behavior, configurable scan mode, deduplicated reporting, optional repository scanning, and persisted scan state.
+I inspected this pull request using a shared scan engine, policy packs, severity-aware rules, inline annotations, suppression controls, comment upsert behavior, configurable scan mode, deduplicated reporting, optional repository scanning, persisted scan state, and scan history tracking.
 
 - **PR:** #${pr.number}
 - **Title:** ${pr.title}

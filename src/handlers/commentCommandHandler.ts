@@ -6,7 +6,12 @@ import { RepositoryContextInfo } from "../types/githubContext";
 import { upsertBotComment } from "../utils/commentUpsert";
 import { handlePullRequest } from "./pullRequestHandler";
 import { hasCommandPermission } from "../utils/permissionChecker";
-import { loadScanState, saveScanState } from "./scanStateStore";
+import {
+  appendScanHistory,
+  loadScanHistory,
+  loadScanState,
+  saveScanState
+} from "./scanStateStore";
 import { runRepositoryScan } from "./scanService";
 
 type IssueCommentEventName = "issue_comment.created";
@@ -80,6 +85,7 @@ Available commands:
 
 - \`/compliance-shield help\`
 - \`/compliance-shield status\`
+- \`/compliance-shield history\`
 - \`/compliance-shield scan-repo\`
 - \`/compliance-shield rescan\`
 
@@ -107,6 +113,15 @@ Available commands:
 
     try {
       const lastState = await loadScanState(context, repoInfo);
+      const history = await loadScanHistory(context, repoInfo);
+
+      const recentHistory = history.entries
+        .slice(0, 5)
+        .map(
+          (entry, index) =>
+            `${index + 1}. **${entry.scanType.toUpperCase()}** • ${entry.timestamp} • Violations: ${entry.violationsFound} • Files: ${entry.scannedFiles}${entry.prNumber ? ` • PR #${entry.prNumber}` : ""}${entry.triggeredBy ? ` • By: ${entry.triggeredBy}` : ""}`
+        )
+        .join("\n");
 
       await upsertBotComment(
         context,
@@ -127,12 +142,6 @@ Available commands:
 - **Ignored indicators:** ${config.ignoreIndicators.join(", ") || "None"}
 - **Inline ignore comment:** ${config.inlineIgnoreComment}
 
-### Command permissions
-- **help:** ${config.commandPermissions.help}
-- **status:** ${config.commandPermissions.status}
-- **scan-repo:** ${config.commandPermissions["scan-repo"]}
-- **rescan:** ${config.commandPermissions.rescan}
-
 ### Last scan state
 - **Last updated:** ${lastState?.lastUpdatedAt ?? "No scan recorded yet"}
 - **Last scan type:** ${lastState?.lastScanType ?? "N/A"}
@@ -143,10 +152,8 @@ Available commands:
 - **Last skipped files:** ${lastState?.lastSkippedFiles ?? "N/A"}
 - **Last triggered by:** ${lastState?.lastTriggeredBy ?? "N/A"}
 
-### Active rules
-- **Banned file indicators:** ${config.bannedFileIndicators.map((rule) => `${rule.value} (${rule.severity})`).join(", ") || "None"}
-- **Banned content indicators:** ${config.bannedContentIndicators.map((rule) => `${rule.value} (${rule.severity})`).join(", ") || "None"}
-- **Secret patterns:** ${config.secretPatterns.map((rule) => `${rule.name} (${rule.severity})`).join(", ") || "None"}
+### Recent history
+${recentHistory || "No scan history yet"}
 `
       );
     } catch (error) {
@@ -159,6 +166,56 @@ Available commands:
         repoInfo.repo,
         issue.number,
         "🛡️ Failed to load Compliance Shield status."
+      );
+    }
+
+    return;
+  }
+
+  if (parsedCommand.command === "history") {
+    const allowed = await hasCommandPermission(
+      context,
+      repoInfo,
+      config.commandPermissions.status
+    );
+
+    if (!allowed) {
+      await denyPermission(context, repoInfo, issue.number, "/compliance-shield history");
+      return;
+    }
+
+    try {
+      const history = await loadScanHistory(context, repoInfo);
+
+      const historyText = history.entries
+        .slice(0, 20)
+        .map(
+          (entry, index) =>
+            `${index + 1}. **${entry.scanType.toUpperCase()}** • ${entry.timestamp} • Violations: ${entry.violationsFound} • Files: ${entry.scannedFiles} • Skipped: ${entry.skippedFiles ?? 0}${entry.prNumber ? ` • PR #${entry.prNumber}` : ""}${entry.triggeredBy ? ` • By: ${entry.triggeredBy}` : ""}`
+        )
+        .join("\n");
+
+      await upsertBotComment(
+        context,
+        repoInfo.owner,
+        repoInfo.repo,
+        issue.number,
+        `
+🛡️ **Compliance Shield Scan History**
+
+${historyText || "No scan history yet"}
+`
+      );
+    } catch (error) {
+      context.log.error("History command failed");
+      context.log.error(error);
+
+      await upsertBotComment(
+        context,
+        repoInfo.owner,
+        repoInfo.repo,
+        issue.number,
+        "🛡️ Failed to load Compliance Shield history."
       );
     }
 
@@ -178,6 +235,7 @@ Try:
 
 - \`/compliance-shield help\`
 - \`/compliance-shield status\`
+- \`/compliance-shield history\`
 - \`/compliance-shield scan-repo\`
 - \`/compliance-shield rescan\`
 `
@@ -219,6 +277,17 @@ Try:
         lastTriggeredBy: actor
       });
 
+      await appendScanHistory(context, repoInfo, {
+        timestamp: new Date().toISOString(),
+        scanType: "repo",
+        prNumber: issue.number,
+        scanMode: config.scanMode,
+        violationsFound: repositoryScanResult.violations.length,
+        scannedFiles: repositoryScanResult.scannedFiles,
+        skippedFiles: repositoryScanResult.skippedFiles,
+        triggeredBy: actor
+      });
+
       await upsertBotComment(
         context,
         repoInfo.owner,
@@ -235,11 +304,6 @@ Try:
 - **Skipped unreadable:** ${repositoryScanResult.skippedUnreadable}
 - **Limited by max files:** ${repositoryScanResult.limitedByMaxFiles ? "Yes" : "No"}
 - **Violations found:** ${repositoryScanResult.violations.length}
-- **Minimum severity to fail:** ${config.minimumSeverityToFail.toUpperCase()}
-- **Scan mode:** ${config.scanMode}
-- **Parallel fetch limit:** ${config.parallelFileFetchLimit}
-- **Max repository files:** ${config.maxRepositoryFiles}
-- **Max file size (KB):** ${config.maxFileSizeKB}
 
 ### Findings
 ${formatViolationsForComment(repositoryScanResult.violations)}
@@ -302,6 +366,19 @@ ${formatViolationsForComment(repositoryScanResult.violations)}
       await handlePullRequest(syntheticContext);
 
       const lastState = await loadScanState(context, repoInfo);
+
+      if (lastState) {
+        await appendScanHistory(context, repoInfo, {
+          timestamp: lastState.lastUpdatedAt,
+          scanType: lastState.lastScanType,
+          prNumber: lastState.lastPrNumber,
+          scanMode: lastState.lastScanMode,
+          violationsFound: lastState.lastViolationsFound,
+          scannedFiles: lastState.lastScannedFiles,
+          skippedFiles: lastState.lastSkippedFiles,
+          triggeredBy: actor
+        });
+      }
 
       await upsertBotComment(
         context,
