@@ -30,6 +30,6 @@ jobs:
           INSTALLATION_ID: ${{ secrets.COMPLIANCE_SHIELD_INSTALLATION_ID }}
           WEBHOOK_SECRET: ${{ secrets.COMPLIANCE_SHIELD_WEBHOOK_SECRET }}
           SCHEDULED_SCAN_OWNER: ${{ github.repository_owner }}
-          SCHEDULED_SCAN_REPO: compliance-shield
+          SCHEDULED_SCAN_REPO: ${{ github.event.repository.name || github.event.repository.name }}
           SCHEDULED_SCAN_DEFAULT_BRANCH: main
         run: npm run scheduled-scan
