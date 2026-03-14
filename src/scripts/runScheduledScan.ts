@@ -17,8 +17,12 @@ async function main(): Promise<void> {
   const repo = getRequiredEnv("SCHEDULED_SCAN_REPO");
   const defaultBranch = process.env["SCHEDULED_SCAN_DEFAULT_BRANCH"] || "main";
 
+  // const appId = getRequiredEnv("APP_ID");
+  // const privateKey = getRequiredEnv("PRIVATE_KEY");
+  // const installationId = Number(getRequiredEnv("INSTALLATION_ID"));
+
   const appId = getRequiredEnv("APP_ID");
-  const privateKey = getRequiredEnv("PRIVATE_KEY");
+  const privateKey = getRequiredEnv("PRIVATE_KEY").replace(/\\n/g, "\n");
   const installationId = Number(getRequiredEnv("INSTALLATION_ID"));
 
   const repoInfo: RepositoryContextInfo = {
