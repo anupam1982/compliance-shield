@@ -19,6 +19,7 @@ async function main(): Promise<void> {
 
   const appId = getRequiredEnv("APP_ID");
   const privateKey = getRequiredEnv("PRIVATE_KEY");
+  const installationId = Number(getRequiredEnv("INSTALLATION_ID"));
 
   const repoInfo: RepositoryContextInfo = {
     owner,
@@ -33,12 +34,12 @@ async function main(): Promise<void> {
     Octokit: ProbotOctokit
   });
 
-  const octokit = await probot.auth();
+  const octokit = await probot.auth(installationId);
 
   const context = {
     octokit,
     log: console
-  } as unknown as Parameters<typeof loadComplianceConfig>[0];
+  } as Parameters<typeof loadComplianceConfig>[0];
 
   const config = await loadComplianceConfig(context, repoInfo);
   const result = await runRepositoryScan(context, repoInfo, config);
