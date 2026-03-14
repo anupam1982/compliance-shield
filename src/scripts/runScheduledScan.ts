@@ -39,10 +39,14 @@ async function main(): Promise<void> {
   const context = {
     octokit,
     log: console
-  } as Parameters<typeof loadComplianceConfig>[0];
+  } as unknown as Parameters<typeof loadComplianceConfig>[0];
 
   const config = await loadComplianceConfig(context, repoInfo);
   const result = await runRepositoryScan(context, repoInfo, config);
+
+  if (result.scanType !== "repo") {
+    throw new Error("Expected repository scan result");
+  }
 
   await saveScanState(context, repoInfo, {
     lastUpdatedAt: new Date().toISOString(),
