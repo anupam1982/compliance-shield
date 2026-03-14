@@ -27,6 +27,9 @@ export interface ComplianceRuleSet {
   ignoreIndicators: string[];
   inlineIgnoreComment: string;
   scanMode: ScanMode;
+  maxRepositoryFiles: number;
+  maxFileSizeKB: number;
+  parallelFileFetchLimit: number;
 }
 
 export interface ComplianceConfigFile extends Partial<ComplianceRuleSet> {

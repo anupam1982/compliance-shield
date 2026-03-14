@@ -8,5 +8,10 @@ export interface RepositoryFileToScan {
 export interface RepositoryScanResult {
   scannedFiles: number;
   skippedFiles: number;
+  skippedByExtension: number;
+  skippedByPath: number;
+  skippedBySize: number;
+  skippedUnreadable: number;
+  limitedByMaxFiles: boolean;
   violations: ComplianceViolation[];
 }

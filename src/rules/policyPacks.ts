@@ -28,7 +28,10 @@ export const policyPacks: Record<PolicyName, ComplianceRuleSet> = {
     ignorePaths: [],
     ignoreIndicators: [],
     inlineIgnoreComment: "compliance-shield-ignore",
-    scanMode: "full-file"
+    scanMode: "full-file",
+    maxRepositoryFiles: 200,
+    maxFileSizeKB: 200,
+    parallelFileFetchLimit: 10
   },
 
   "secrets-only": {
@@ -44,7 +47,10 @@ export const policyPacks: Record<PolicyName, ComplianceRuleSet> = {
     ignorePaths: [],
     ignoreIndicators: [],
     inlineIgnoreComment: "compliance-shield-ignore",
-    scanMode: "full-file"
+    scanMode: "full-file",
+    maxRepositoryFiles: 200,
+    maxFileSizeKB: 200,
+    parallelFileFetchLimit: 10
   },
 
   crypto: {
@@ -60,7 +66,10 @@ export const policyPacks: Record<PolicyName, ComplianceRuleSet> = {
     ignorePaths: [],
     ignoreIndicators: [],
     inlineIgnoreComment: "compliance-shield-ignore",
-    scanMode: "diff"
+    scanMode: "diff",
+    maxRepositoryFiles: 200,
+    maxFileSizeKB: 200,
+    parallelFileFetchLimit: 10
   }
 };
 

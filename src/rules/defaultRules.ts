@@ -46,5 +46,8 @@ export const defaultRules: ComplianceRuleSet = {
   ignorePaths: [],
   ignoreIndicators: [],
   inlineIgnoreComment: "compliance-shield-ignore",
-  scanMode: "diff"
+  scanMode: "diff",
+  maxRepositoryFiles: 200,
+  maxFileSizeKB: 200,
+  parallelFileFetchLimit: 10
 };

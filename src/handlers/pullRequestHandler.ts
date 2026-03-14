@@ -49,10 +49,15 @@ export async function handlePullRequest(
       const repositoryScanResult = await scanRepository(context, repoInfo, config);
 
       repositoryScanSummary = `
-### Repository scan
+#### Repository scan
 - **Triggered:** Yes
 - **Scanned files:** ${repositoryScanResult.scannedFiles}
 - **Skipped files:** ${repositoryScanResult.skippedFiles}
+- **Skipped by extension:** ${repositoryScanResult.skippedByExtension}
+- **Skipped by path:** ${repositoryScanResult.skippedByPath}
+- **Skipped by size:** ${repositoryScanResult.skippedBySize}
+- **Skipped unreadable:** ${repositoryScanResult.skippedUnreadable}
+- **Limited by max files:** ${repositoryScanResult.limitedByMaxFiles ? "Yes" : "No"}
 - **Repository violations found:** ${repositoryScanResult.violations.length}
 `;
     } catch (error) {

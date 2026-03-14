@@ -1,11 +1,17 @@
 policy: strict
-
+scanMode: full-file
 minimumSeverityToFail: high
 
-scanMode: full-file
+maxRepositoryFiles: 200
+maxFileSizeKB: 200
+parallelFileFetchLimit: 10
 
 ignorePaths:
   - docs/
   - fixtures/
+  - node_modules/
+
+ignoreIndicators:
+  - TODO_SECRET
 
 inlineIgnoreComment: compliance-shield-ignore

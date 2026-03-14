@@ -36,6 +36,12 @@ function normalizePolicy(value: unknown): PolicyName | undefined {
     : undefined;
 }
 
+function normalizeNumber(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? Math.floor(value)
+    : fallback;
+}
+
 function normalizeStringArray(value: unknown, fallback: string[]): string[] {
   if (!Array.isArray(value)) {
     return fallback;
@@ -222,6 +228,18 @@ export async function loadComplianceConfig(
     scanMode: normalizeScanMode(
       repoConfig?.scanMode ?? orgConfig?.scanMode,
       baseRules.scanMode
+    ),
+    maxRepositoryFiles: normalizeNumber(
+      repoConfig?.maxRepositoryFiles ?? orgConfig?.maxRepositoryFiles,
+      baseRules.maxRepositoryFiles
+    ),
+    maxFileSizeKB: normalizeNumber(
+      repoConfig?.maxFileSizeKB ?? orgConfig?.maxFileSizeKB,
+      baseRules.maxFileSizeKB
+    ),
+    parallelFileFetchLimit: normalizeNumber(
+      repoConfig?.parallelFileFetchLimit ?? orgConfig?.parallelFileFetchLimit,
+      baseRules.parallelFileFetchLimit
     )
   };
 }

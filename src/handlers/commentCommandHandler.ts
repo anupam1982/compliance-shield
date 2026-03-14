@@ -95,9 +95,17 @@ Try:
 
 - **Scanned files:** ${repositoryScanResult.scannedFiles}
 - **Skipped files:** ${repositoryScanResult.skippedFiles}
+- **Skipped by extension:** ${repositoryScanResult.skippedByExtension}
+- **Skipped by path:** ${repositoryScanResult.skippedByPath}
+- **Skipped by size:** ${repositoryScanResult.skippedBySize}
+- **Skipped unreadable:** ${repositoryScanResult.skippedUnreadable}
+- **Limited by max files:** ${repositoryScanResult.limitedByMaxFiles ? "Yes" : "No"}
 - **Violations found:** ${violations.length}
 - **Minimum severity to fail:** ${config.minimumSeverityToFail.toUpperCase()}
 - **Scan mode:** ${config.scanMode}
+- **Parallel fetch limit:** ${config.parallelFileFetchLimit}
+- **Max repository files:** ${config.maxRepositoryFiles}
+- **Max file size (KB):** ${config.maxFileSizeKB}
 
 ### Findings
 ${formatViolationsForComment(violations)}

@@ -8,6 +8,7 @@ import { runRepositoryComplianceChecks } from "../rules/ruleEngine";
 interface GitHubTreeItem {
   path: string;
   type: string;
+  size?: number;
 }
 
 async function getRepositoryTree(
@@ -26,7 +27,8 @@ async function getRepositoryTree(
     .filter((item): item is GitHubTreeItem => Boolean(item.path && item.type))
     .map((item) => ({
       path: item.path,
-      type: item.type
+      type: item.type,
+      size: item.size
     }));
 }
 
@@ -69,6 +71,30 @@ async function getFileContent(
   }
 }
 
+async function runWithConcurrencyLimit<TInput, TOutput>(
+  items: TInput[],
+  limit: number,
+  worker: (item: TInput) => Promise<TOutput>
+): Promise<TOutput[]> {
+  const results: TOutput[] = [];
+  let index = 0;
+
+  async function runWorker(): Promise<void> {
+    while (index < items.length) {
+      const currentIndex = index;
+      index += 1;
+
+      const result = await worker(items[currentIndex]);
+      results[currentIndex] = result;
+    }
+  }
+
+  const workerCount = Math.min(limit, items.length);
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+
+  return results;
+}
+
 export async function scanRepository(
   context: Context,
   repoInfo: RepositoryContextInfo,
@@ -77,8 +103,13 @@ export async function scanRepository(
   const branchSha = await getDefaultBranchSha(context, repoInfo);
   const treeItems = await getRepositoryTree(context, repoInfo, branchSha);
 
-  const filesToScan: RepositoryFileToScan[] = [];
-  let skippedFiles = 0;
+  let skippedByExtension = 0;
+  let skippedByPath = 0;
+  let skippedBySize = 0;
+  let skippedUnreadable = 0;
+  let limitedByMaxFiles = false;
+
+  const eligibleItems: GitHubTreeItem[] = [];
 
   for (const item of treeItems) {
     if (item.type !== "blob") {
@@ -86,32 +117,56 @@ export async function scanRepository(
     }
 
     if (!isLikelyTextFile(item.path)) {
-      skippedFiles += 1;
+      skippedByExtension += 1;
       continue;
     }
 
     if (rules.ignorePaths.some((ignorePath) => item.path.startsWith(ignorePath))) {
-      skippedFiles += 1;
+      skippedByPath += 1;
       continue;
     }
 
-    const content = await getFileContent(
-      context,
-      repoInfo,
-      item.path,
-      repoInfo.defaultBranch
-    );
-
-    if (content === undefined) {
-      skippedFiles += 1;
+    const sizeKB = item.size ? item.size / 1024 : 0;
+    if (sizeKB > rules.maxFileSizeKB) {
+      skippedBySize += 1;
       continue;
     }
 
-    filesToScan.push({
-      path: item.path,
-      content
-    });
+    eligibleItems.push(item);
   }
+
+  const limitedItems = eligibleItems.slice(0, rules.maxRepositoryFiles);
+  if (eligibleItems.length > rules.maxRepositoryFiles) {
+    limitedByMaxFiles = true;
+  }
+
+  const fetchedFiles = await runWithConcurrencyLimit(
+    limitedItems,
+    rules.parallelFileFetchLimit,
+    async (item): Promise<RepositoryFileToScan | null> => {
+      const content = await getFileContent(
+        context,
+        repoInfo,
+        item.path,
+        repoInfo.defaultBranch
+      );
+
+      if (content === undefined) {
+        return null;
+      }
+
+      return {
+        path: item.path,
+        content
+      };
+    }
+  );
+
+  const filesToScan = fetchedFiles.filter(
+    (file): file is RepositoryFileToScan => file !== null
+  );
+
+  skippedUnreadable = fetchedFiles.length - filesToScan.length;
 
   const violations = runRepositoryComplianceChecks(
     filesToScan.map((file) => ({
@@ -123,7 +178,12 @@ export async function scanRepository(
 
   return {
     scannedFiles: filesToScan.length,
-    skippedFiles,
+    skippedFiles: skippedByExtension + skippedByPath + skippedBySize + skippedUnreadable,
+    skippedByExtension,
+    skippedByPath,
+    skippedBySize,
+    skippedUnreadable,
+    limitedByMaxFiles,
     violations
   };
 }
