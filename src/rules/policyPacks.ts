@@ -31,7 +31,13 @@ export const policyPacks: Record<PolicyName, ComplianceRuleSet> = {
     scanMode: "full-file",
     maxRepositoryFiles: 200,
     maxFileSizeKB: 200,
-    parallelFileFetchLimit: 10
+    parallelFileFetchLimit: 10,
+    commandPermissions: {
+      help: "everyone",
+      status: "everyone",
+      "scan-repo": "write",
+      rescan: "write"
+    }
   },
 
   "secrets-only": {
@@ -50,7 +56,13 @@ export const policyPacks: Record<PolicyName, ComplianceRuleSet> = {
     scanMode: "full-file",
     maxRepositoryFiles: 200,
     maxFileSizeKB: 200,
-    parallelFileFetchLimit: 10
+    parallelFileFetchLimit: 10,
+    commandPermissions: {
+      help: "everyone",
+      status: "everyone",
+      "scan-repo": "write",
+      rescan: "write"
+    }
   },
 
   crypto: {
@@ -69,7 +81,13 @@ export const policyPacks: Record<PolicyName, ComplianceRuleSet> = {
     scanMode: "diff",
     maxRepositoryFiles: 200,
     maxFileSizeKB: 200,
-    parallelFileFetchLimit: 10
+    parallelFileFetchLimit: 10,
+    commandPermissions: {
+      help: "everyone",
+      status: "everyone",
+      "scan-repo": "write",
+      rescan: "write"
+    }
   }
 };
 

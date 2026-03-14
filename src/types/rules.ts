@@ -1,6 +1,7 @@
 export type SeverityLevel = "low" | "medium" | "high" | "critical";
 export type ScanMode = "diff" | "full-file";
 export type PolicyName = "baseline" | "strict" | "secrets-only" | "crypto";
+export type CommandPermissionLevel = "everyone" | "write" | "admin";
 
 export interface SecretPatternRule {
   name: string;
@@ -18,6 +19,13 @@ export interface FileIndicatorRule {
   severity: SeverityLevel;
 }
 
+export interface CommandPermissions {
+  help: CommandPermissionLevel;
+  status: CommandPermissionLevel;
+  "scan-repo": CommandPermissionLevel;
+  rescan: CommandPermissionLevel;
+}
+
 export interface ComplianceRuleSet {
   bannedFileIndicators: FileIndicatorRule[];
   bannedContentIndicators: ContentIndicatorRule[];
@@ -30,6 +38,7 @@ export interface ComplianceRuleSet {
   maxRepositoryFiles: number;
   maxFileSizeKB: number;
   parallelFileFetchLimit: number;
+  commandPermissions: CommandPermissions;
 }
 
 export interface ComplianceConfigFile extends Partial<ComplianceRuleSet> {

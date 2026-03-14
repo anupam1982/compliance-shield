@@ -9,11 +9,27 @@ import {
 import { RepositoryContextInfo } from "../types/githubContext";
 import { upsertBotComment } from "../utils/commentUpsert";
 import { handlePullRequest } from "./pullRequestHandler";
+import { hasCommandPermission } from "../utils/permissionChecker";
 
 type IssueCommentEventName = "issue_comment.created";
 
 function isPullRequestComment(context: Context<IssueCommentEventName>): boolean {
   return Boolean(context.payload.issue.pull_request);
+}
+
+async function denyPermission(
+  context: Context<IssueCommentEventName>,
+  repoInfo: RepositoryContextInfo,
+  issueNumber: number,
+  command: string
+): Promise<void> {
+  await upsertBotComment(
+    context,
+    repoInfo.owner,
+    repoInfo.repo,
+    issueNumber,
+    `🛡️ You do not have permission to run \`${command}\` in this repository.`
+  );
 }
 
 export async function handleCommentCommand(
@@ -39,7 +55,20 @@ export async function handleCommentCommand(
     defaultBranch: repo.default_branch
   };
 
+  const config = await loadComplianceConfig(context, repoInfo);
+
   if (parsedCommand.command === "help") {
+    const allowed = await hasCommandPermission(
+      context,
+      repoInfo,
+      config.commandPermissions.help
+    );
+
+    if (!allowed) {
+      await denyPermission(context, repoInfo, issue.number, "/compliance-shield help");
+      return;
+    }
+
     await upsertBotComment(
       context,
       repoInfo.owner,
@@ -54,16 +83,30 @@ Available commands:
 - \`/compliance-shield status\`
 - \`/compliance-shield scan-repo\`
 - \`/compliance-shield rescan\`
+
+### Command permissions
+- **help:** ${config.commandPermissions.help}
+- **status:** ${config.commandPermissions.status}
+- **scan-repo:** ${config.commandPermissions["scan-repo"]}
+- **rescan:** ${config.commandPermissions.rescan}
 `
     );
-
     return;
   }
 
   if (parsedCommand.command === "status") {
-    try {
-      const config = await loadComplianceConfig(context, repoInfo);
+    const allowed = await hasCommandPermission(
+      context,
+      repoInfo,
+      config.commandPermissions.status
+    );
 
+    if (!allowed) {
+      await denyPermission(context, repoInfo, issue.number, "/compliance-shield status");
+      return;
+    }
+
+    try {
       await upsertBotComment(
         context,
         repoInfo.owner,
@@ -82,6 +125,12 @@ Available commands:
 - **Ignored paths:** ${config.ignorePaths.join(", ") || "None"}
 - **Ignored indicators:** ${config.ignoreIndicators.join(", ") || "None"}
 - **Inline ignore comment:** ${config.inlineIgnoreComment}
+
+### Command permissions
+- **help:** ${config.commandPermissions.help}
+- **status:** ${config.commandPermissions.status}
+- **scan-repo:** ${config.commandPermissions["scan-repo"]}
+- **rescan:** ${config.commandPermissions.rescan}
 
 ### Active rules
 - **Banned file indicators:** ${config.bannedFileIndicators.map((rule) => `${rule.value} (${rule.severity})`).join(", ") || "None"}
@@ -122,11 +171,21 @@ Try:
 - \`/compliance-shield rescan\`
 `
     );
-
     return;
   }
 
   if (parsedCommand.command === "scan-repo") {
+    const allowed = await hasCommandPermission(
+      context,
+      repoInfo,
+      config.commandPermissions["scan-repo"]
+    );
+
+    if (!allowed) {
+      await denyPermission(context, repoInfo, issue.number, "/compliance-shield scan-repo");
+      return;
+    }
+
     await upsertBotComment(
       context,
       repoInfo.owner,
@@ -136,7 +195,6 @@ Try:
     );
 
     try {
-      const config = await loadComplianceConfig(context, repoInfo);
       const repositoryScanResult = await scanRepository(context, repoInfo, config);
       const violations = deduplicateViolations(repositoryScanResult.violations);
 
@@ -183,6 +241,17 @@ ${formatViolationsForComment(violations)}
   }
 
   if (parsedCommand.command === "rescan") {
+    const allowed = await hasCommandPermission(
+      context,
+      repoInfo,
+      config.commandPermissions.rescan
+    );
+
+    if (!allowed) {
+      await denyPermission(context, repoInfo, issue.number, "/compliance-shield rescan");
+      return;
+    }
+
     await upsertBotComment(
       context,
       repoInfo.owner,
@@ -202,7 +271,10 @@ ${formatViolationsForComment(violations)}
         ...context,
         payload: {
           ...context.payload,
-          pull_request: prResponse.data
+          action: "synchronize",
+          number: issue.number,
+          pull_request: prResponse.data,
+          repository: context.payload.repository
         }
       } as unknown as Context<"pull_request.opened" | "pull_request.synchronize">;
 

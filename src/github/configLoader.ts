@@ -3,6 +3,8 @@ import { Context } from "probot";
 import { defaultRules } from "../rules/defaultRules";
 import { getPolicyPack } from "../rules/policyPacks";
 import {
+  CommandPermissionLevel,
+  CommandPermissions,
   ComplianceConfigFile,
   ComplianceRuleSet,
   ContentIndicatorRule,
@@ -17,6 +19,7 @@ import { RepositoryContextInfo } from "../types/githubContext";
 const validSeverityLevels: SeverityLevel[] = ["low", "medium", "high", "critical"];
 const validScanModes: ScanMode[] = ["diff", "full-file"];
 const validPolicyNames: PolicyName[] = ["baseline", "strict", "secrets-only", "crypto"];
+const validPermissionLevels: CommandPermissionLevel[] = ["everyone", "write", "admin"];
 
 function normalizeSeverity(value: unknown, fallback: SeverityLevel): SeverityLevel {
   return typeof value === "string" && validSeverityLevels.includes(value as SeverityLevel)
@@ -40,6 +43,33 @@ function normalizeNumber(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) && value > 0
     ? Math.floor(value)
     : fallback;
+}
+
+function normalizePermissionLevel(
+  value: unknown,
+  fallback: CommandPermissionLevel
+): CommandPermissionLevel {
+  return typeof value === "string" && validPermissionLevels.includes(value as CommandPermissionLevel)
+    ? (value as CommandPermissionLevel)
+    : fallback;
+}
+
+function normalizeCommandPermissions(
+  value: unknown,
+  fallback: CommandPermissions
+): CommandPermissions {
+  if (typeof value !== "object" || value === null) {
+    return fallback;
+  }
+
+  const raw = value as Partial<CommandPermissions>;
+
+  return {
+    help: normalizePermissionLevel(raw.help, fallback.help),
+    status: normalizePermissionLevel(raw.status, fallback.status),
+    "scan-repo": normalizePermissionLevel(raw["scan-repo"], fallback["scan-repo"]),
+    rescan: normalizePermissionLevel(raw.rescan, fallback.rescan)
+  };
 }
 
 function normalizeStringArray(value: unknown, fallback: string[]): string[] {
@@ -240,6 +270,10 @@ export async function loadComplianceConfig(
     parallelFileFetchLimit: normalizeNumber(
       repoConfig?.parallelFileFetchLimit ?? orgConfig?.parallelFileFetchLimit,
       baseRules.parallelFileFetchLimit
+    ),
+    commandPermissions: normalizeCommandPermissions(
+      repoConfig?.commandPermissions ?? orgConfig?.commandPermissions,
+      baseRules.commandPermissions
     )
   };
 }

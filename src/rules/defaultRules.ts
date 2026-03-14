@@ -49,5 +49,11 @@ export const defaultRules: ComplianceRuleSet = {
   scanMode: "diff",
   maxRepositoryFiles: 200,
   maxFileSizeKB: 200,
-  parallelFileFetchLimit: 10
+  parallelFileFetchLimit: 10,
+  commandPermissions: {
+    help: "everyone",
+    status: "everyone",
+    "scan-repo": "write",
+    rescan: "write"
+  }
 };

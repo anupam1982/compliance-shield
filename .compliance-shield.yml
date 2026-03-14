@@ -29,6 +29,10 @@ secretPatterns:
     pattern: TEST_TOKEN_[A-Za-z0-9]+
     severity: high
 
+maxRepositoryFiles: 200
+maxFileSizeKB: 200
+parallelFileFetchLimit: 10
+
 ignorePaths:
   - docs/
   - fixtures/
@@ -37,3 +41,9 @@ ignoreIndicators:
   - TODO_SECRET
 
 inlineIgnoreComment: compliance-shield-ignore
+
+commandPermissions:
+  help: everyone
+  status: everyone
+  scan-repo: admin
+  rescan: write
