@@ -156,9 +156,9 @@ export function runComplianceChecks(
 
       try {
         const regex = new RegExp(secretPattern.pattern, "g");
-        const matches = scanSource.match(regex);
+        const hasMatch = regex.test(scanSource);
 
-        if (matches && matches.length > 0) {
+        if (hasMatch) {
           const matchResult = findMatchingLineWithInlineIgnore(
             scanSource,
             (contentLine) => {

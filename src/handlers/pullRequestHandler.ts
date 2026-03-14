@@ -4,6 +4,10 @@ import { runComplianceChecks, hasBlockingViolations } from "../rules/ruleEngine"
 import { reportCheckRun } from "./checkRunReporter";
 import { loadComplianceConfig } from "../github/configLoader";
 import { upsertPullRequestComment } from "./commentReporter";
+import {
+  deduplicateViolations,
+  formatViolationsForComment
+} from "../utils/violationFormatter";
 
 type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
 
@@ -18,7 +22,9 @@ export async function handlePullRequest(
 
   const config = await loadComplianceConfig(context);
   const inspectionResult = await inspectPullRequestFiles(context, config.scanMode);
-  const violations = runComplianceChecks(inspectionResult.files, config);
+
+  const rawViolations = runComplianceChecks(inspectionResult.files, config);
+  const violations = deduplicateViolations(rawViolations);
   const isBlocking = hasBlockingViolations(violations, config.minimumSeverityToFail);
 
   const fileList = inspectionResult.files
@@ -29,20 +35,10 @@ export async function handlePullRequest(
     )
     .join("\n");
 
-  const violationSection =
-    violations.length === 0
-      ? "✅ No compliance violations detected."
-      : violations
-          .map((violation, index) => {
-            const location = violation.line ? ` (line ${violation.line})` : "";
-            return `${index + 1}. **${violation.severity.toUpperCase()}** **${violation.type.toUpperCase()}** in \`${violation.fileName}\`${location} — ${violation.message}`;
-          })
-          .join("\n");
-
   const body = `
-🛡️ **Compliance Shield – Phase 11**
+🛡️ **Compliance Shield – Phase 12**
 
-I inspected this pull request using severity-aware compliance rules, inline annotations, suppression controls, comment upsert behavior, and configurable scan mode.
+I inspected this pull request using severity-aware compliance rules, inline annotations, suppression controls, comment upsert behavior, configurable scan mode, and deduplicated reporting.
 
 - **PR:** #${pr.number}
 - **Title:** ${pr.title}
@@ -64,8 +60,9 @@ I inspected this pull request using severity-aware compliance rules, inline anno
 ${fileList || "- No files found"}
 
 ### Compliance report
-${violationSection}
+${formatViolationsForComment(violations)}
 `;
+
   try {
     await upsertPullRequestComment(context, owner, repoName, pr.number, body);
   } catch (error) {
