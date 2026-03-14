@@ -1,6 +1,9 @@
 import { Context } from "probot";
 import { inspectPullRequestFiles } from "./prFileInspector";
-import { runComplianceChecks, hasBlockingViolations } from "../rules/ruleEngine";
+import {
+  runComplianceChecks,
+  hasBlockingViolations
+} from "../rules/ruleEngine";
 import { reportCheckRun } from "./checkRunReporter";
 import { loadComplianceConfig } from "../github/configLoader";
 import { upsertPullRequestComment } from "./commentReporter";
@@ -8,6 +11,7 @@ import {
   deduplicateViolations,
   formatViolationsForComment
 } from "../utils/violationFormatter";
+import { scanRepository } from "./repositoryScanner";
 
 type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
 
@@ -21,6 +25,8 @@ export async function handlePullRequest(
   const repoName = repo.name;
 
   const config = await loadComplianceConfig(context);
+  const shouldRunRepositoryScan = pr.title.includes("[scan-repo]");
+
   const inspectionResult = await inspectPullRequestFiles(context, config.scanMode);
 
   const rawViolations = runComplianceChecks(inspectionResult.files, config);
@@ -35,10 +41,41 @@ export async function handlePullRequest(
     )
     .join("\n");
 
-  const body = `
-🛡️ **Compliance Shield – Phase 13**
+  let repositoryScanSummary = "";
 
-I inspected this pull request using policy packs, severity-aware rules, inline annotations, suppression controls, comment upsert behavior, configurable scan mode, and deduplicated reporting.
+  if (shouldRunRepositoryScan) {
+    try {
+      const repositoryScanResult = await scanRepository(context, config);
+
+      repositoryScanSummary = `
+### Repository scan
+- **Triggered:** Yes
+- **Scanned files:** ${repositoryScanResult.scannedFiles}
+- **Skipped files:** ${repositoryScanResult.skippedFiles}
+- **Repository violations found:** ${repositoryScanResult.violations.length}
+`;
+    } catch (error) {
+      context.log.error("Failed to scan repository");
+      context.log.error(error);
+
+      repositoryScanSummary = `
+### Repository scan
+- **Triggered:** Yes
+- **Status:** Failed
+`;
+    }
+  } else {
+    repositoryScanSummary = `
+### Repository scan
+- **Triggered:** No
+- Add \`[scan-repo]\` to the PR title to run a repository scan.
+`;
+  }
+
+  const body = `
+🛡️ **Compliance Shield – Phase 15**
+
+I inspected this pull request using policy packs, severity-aware rules, inline annotations, suppression controls, comment upsert behavior, configurable scan mode, deduplicated reporting, and optional repository scanning.
 
 - **PR:** #${pr.number}
 - **Title:** ${pr.title}
@@ -50,6 +87,8 @@ I inspected this pull request using policy packs, severity-aware rules, inline a
 - **Minimum severity to fail:** ${config.minimumSeverityToFail.toUpperCase()}
 - **Scan mode:** ${config.scanMode}
 - **PR status:** ${isBlocking ? "❌ BLOCKING" : "✅ PASSING"}
+
+${repositoryScanSummary}
 
 ### Active configuration
 - **Banned file indicators:** ${config.bannedFileIndicators.map((rule) => `${rule.value} (${rule.severity})`).join(", ") || "None"}
@@ -67,6 +106,7 @@ ${fileList || "- No files found"}
 ### Compliance report
 ${formatViolationsForComment(violations)}
 `;
+
   try {
     await upsertPullRequestComment(context, owner, repoName, pr.number, body);
   } catch (error) {

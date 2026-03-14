@@ -196,3 +196,114 @@ export function runComplianceChecks(
 
   return violations;
 }
+export interface RepositoryFileForScan {
+  filename: string;
+  content: string;
+}
+
+export function runRepositoryComplianceChecks(
+  files: RepositoryFileForScan[],
+  rules: ComplianceRuleSet
+): ComplianceViolation[] {
+  const violations: ComplianceViolation[] = [];
+
+  for (const file of files) {
+    if (shouldIgnorePath(file.filename, rules.ignorePaths)) {
+      continue;
+    }
+
+    const lowerFileName = file.filename.toLowerCase();
+
+    for (const indicatorRule of rules.bannedFileIndicators) {
+      if (shouldIgnoreIndicator(indicatorRule.value, rules.ignoreIndicators)) {
+        continue;
+      }
+
+      if (lowerFileName.includes(indicatorRule.value.toLowerCase())) {
+        violations.push({
+          type: "file",
+          fileName: file.filename,
+          indicator: indicatorRule.value,
+          severity: indicatorRule.severity,
+          message: `Filename contains banned indicator \`${indicatorRule.value}\`.`
+        });
+      }
+    }
+
+    const sourceText = file.content;
+
+    for (const indicatorRule of rules.bannedContentIndicators) {
+      if (shouldIgnoreIndicator(indicatorRule.value, rules.ignoreIndicators)) {
+        continue;
+      }
+
+      if (sourceText.includes(indicatorRule.value)) {
+        const matchResult = findMatchingLineWithInlineIgnore(
+          sourceText,
+          (contentLine) => contentLine.includes(indicatorRule.value),
+          rules.inlineIgnoreComment,
+          false
+        );
+
+        if (matchResult.ignored) {
+          continue;
+        }
+
+        violations.push({
+          type: "content",
+          fileName: file.filename,
+          indicator: indicatorRule.value,
+          severity: indicatorRule.severity,
+          message: `Content contains banned indicator \`${indicatorRule.value}\`.`,
+          line: matchResult.line
+        });
+      }
+    }
+
+    for (const secretPattern of rules.secretPatterns) {
+      if (shouldIgnoreIndicator(secretPattern.name, rules.ignoreIndicators)) {
+        continue;
+      }
+
+      try {
+        const regex = new RegExp(secretPattern.pattern, "g");
+        const hasMatch = regex.test(sourceText);
+
+        if (hasMatch) {
+          const matchResult = findMatchingLineWithInlineIgnore(
+            sourceText,
+            (contentLine) => {
+              const lineRegex = new RegExp(secretPattern.pattern);
+              return lineRegex.test(contentLine);
+            },
+            rules.inlineIgnoreComment,
+            false
+          );
+
+          if (matchResult.ignored) {
+            continue;
+          }
+
+          violations.push({
+            type: "secret-pattern",
+            fileName: file.filename,
+            indicator: secretPattern.name,
+            severity: secretPattern.severity,
+            message: `Content matched secret pattern \`${secretPattern.name}\`.`,
+            line: matchResult.line
+          });
+        }
+      } catch {
+        violations.push({
+          type: "secret-pattern",
+          fileName: file.filename,
+          indicator: secretPattern.name,
+          severity: "medium",
+          message: `Invalid regex pattern configured for \`${secretPattern.name}\`.`
+        });
+      }
+    }
+  }
+
+  return violations;
+}
