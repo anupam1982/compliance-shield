@@ -2,7 +2,6 @@ import { Probot, Context } from "probot";
 import * as dotenv from "dotenv";
 import { handlePullRequest } from "./handlers/pullRequestHandler";
 
-const token = "TEST_TOKEN_ABC123"; // compliance-shield-ignore
 
 dotenv.config();
 
