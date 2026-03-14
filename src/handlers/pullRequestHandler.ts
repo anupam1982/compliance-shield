@@ -36,9 +36,9 @@ export async function handlePullRequest(
     .join("\n");
 
   const body = `
-🛡️ **Compliance Shield – Phase 12**
+🛡️ **Compliance Shield – Phase 13**
 
-I inspected this pull request using severity-aware compliance rules, inline annotations, suppression controls, comment upsert behavior, configurable scan mode, and deduplicated reporting.
+I inspected this pull request using policy packs, severity-aware rules, inline annotations, suppression controls, comment upsert behavior, configurable scan mode, and deduplicated reporting.
 
 - **PR:** #${pr.number}
 - **Title:** ${pr.title}
@@ -51,6 +51,11 @@ I inspected this pull request using severity-aware compliance rules, inline anno
 - **Scan mode:** ${config.scanMode}
 - **PR status:** ${isBlocking ? "❌ BLOCKING" : "✅ PASSING"}
 
+### Active configuration
+- **Banned file indicators:** ${config.bannedFileIndicators.map((rule) => `${rule.value} (${rule.severity})`).join(", ") || "None"}
+- **Banned content indicators:** ${config.bannedContentIndicators.map((rule) => `${rule.value} (${rule.severity})`).join(", ") || "None"}
+- **Secret patterns:** ${config.secretPatterns.map((rule) => `${rule.name} (${rule.severity})`).join(", ") || "None"}
+
 ### Suppression settings
 - **Ignored paths:** ${config.ignorePaths.join(", ") || "None"}
 - **Ignored indicators:** ${config.ignoreIndicators.join(", ") || "None"}
@@ -62,7 +67,6 @@ ${fileList || "- No files found"}
 ### Compliance report
 ${formatViolationsForComment(violations)}
 `;
-
   try {
     await upsertPullRequestComment(context, owner, repoName, pr.number, body);
   } catch (error) {

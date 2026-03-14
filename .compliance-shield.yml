@@ -1,27 +1,24 @@
 scanMode: full-file
+
 minimumSeverityToFail: high
 
 bannedFileIndicators:
   - value: .pem
-    severity: high
+    severity: critical
   - value: .pfx
     severity: high
-  - value: .key
-    severity: medium
+  - value: id_rsa
+    severity: critical
 
 bannedContentIndicators:
   - value: MD5
-    severity: medium
+    severity: high
   - value: DES
-    severity: high
+    severity: critical
   - value: password=
-    severity: high
+    severity: critical
   - value: api_key
     severity: high
-  - value: secret
-    severity: medium
-  - value: TODO_SECRET
-    severity: low
 
 secretPatterns:
   - name: Demo AWS Pattern
@@ -31,10 +28,6 @@ secretPatterns:
   - name: Demo Token Pattern
     pattern: TEST_TOKEN_[A-Za-z0-9]+
     severity: high
-
-  - name: Demo JWT Pattern
-    pattern: DEMO_JWT_[A-Za-z0-9._-]+
-    severity: medium
 
 ignorePaths:
   - docs/

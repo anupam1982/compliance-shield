@@ -1,5 +1,6 @@
 export type SeverityLevel = "low" | "medium" | "high" | "critical";
 export type ScanMode = "diff" | "full-file";
+export type PolicyName = "baseline" | "strict" | "secrets-only" | "crypto";
 
 export interface SecretPatternRule {
   name: string;
@@ -26,6 +27,10 @@ export interface ComplianceRuleSet {
   ignoreIndicators: string[];
   inlineIgnoreComment: string;
   scanMode: ScanMode;
+}
+
+export interface ComplianceConfigFile extends Partial<ComplianceRuleSet> {
+  policy?: PolicyName;
 }
 
 export interface ComplianceViolation {

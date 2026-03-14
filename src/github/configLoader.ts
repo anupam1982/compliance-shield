@@ -1,10 +1,13 @@
 import { Context } from "probot";
 import yaml from "js-yaml";
 import { defaultRules } from "../rules/defaultRules";
+import { getPolicyPack } from "../rules/policyPacks";
 import {
+  ComplianceConfigFile,
   ComplianceRuleSet,
   ContentIndicatorRule,
   FileIndicatorRule,
+  PolicyName,
   ScanMode,
   SecretPatternRule,
   SeverityLevel
@@ -14,6 +17,7 @@ type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
 
 const validSeverityLevels: SeverityLevel[] = ["low", "medium", "high", "critical"];
 const validScanModes: ScanMode[] = ["diff", "full-file"];
+const validPolicyNames: PolicyName[] = ["baseline", "strict", "secrets-only", "crypto"];
 
 function normalizeSeverity(value: unknown, fallback: SeverityLevel): SeverityLevel {
   return typeof value === "string" && validSeverityLevels.includes(value as SeverityLevel)
@@ -27,6 +31,12 @@ function normalizeScanMode(value: unknown, fallback: ScanMode): ScanMode {
     : fallback;
 }
 
+function normalizePolicy(value: unknown): PolicyName | undefined {
+  return typeof value === "string" && validPolicyNames.includes(value as PolicyName)
+    ? (value as PolicyName)
+    : undefined;
+}
+
 function normalizeStringArray(value: unknown, fallback: string[]): string[] {
   if (!Array.isArray(value)) {
     return fallback;
@@ -36,9 +46,12 @@ function normalizeStringArray(value: unknown, fallback: string[]): string[] {
   return normalized.length > 0 ? normalized : fallback;
 }
 
-function normalizeFileIndicators(value: unknown): FileIndicatorRule[] {
+function normalizeFileIndicators(
+  value: unknown,
+  fallback: FileIndicatorRule[]
+): FileIndicatorRule[] {
   if (!Array.isArray(value)) {
-    return defaultRules.bannedFileIndicators;
+    return fallback;
   }
 
   const normalized = value
@@ -63,12 +76,15 @@ function normalizeFileIndicators(value: unknown): FileIndicatorRule[] {
     })
     .filter((item): item is FileIndicatorRule => item !== null);
 
-  return normalized.length > 0 ? normalized : defaultRules.bannedFileIndicators;
+  return normalized.length > 0 ? normalized : fallback;
 }
 
-function normalizeContentIndicators(value: unknown): ContentIndicatorRule[] {
+function normalizeContentIndicators(
+  value: unknown,
+  fallback: ContentIndicatorRule[]
+): ContentIndicatorRule[] {
   if (!Array.isArray(value)) {
-    return defaultRules.bannedContentIndicators;
+    return fallback;
   }
 
   const normalized = value
@@ -93,12 +109,15 @@ function normalizeContentIndicators(value: unknown): ContentIndicatorRule[] {
     })
     .filter((item): item is ContentIndicatorRule => item !== null);
 
-  return normalized.length > 0 ? normalized : defaultRules.bannedContentIndicators;
+  return normalized.length > 0 ? normalized : fallback;
 }
 
-function normalizeSecretPatterns(value: unknown): SecretPatternRule[] {
+function normalizeSecretPatterns(
+  value: unknown,
+  fallback: SecretPatternRule[]
+): SecretPatternRule[] {
   if (!Array.isArray(value)) {
-    return defaultRules.secretPatterns;
+    return fallback;
   }
 
   const normalized = value
@@ -122,7 +141,7 @@ function normalizeSecretPatterns(value: unknown): SecretPatternRule[] {
     })
     .filter((item): item is SecretPatternRule => item !== null);
 
-  return normalized.length > 0 ? normalized : defaultRules.secretPatterns;
+  return normalized.length > 0 ? normalized : fallback;
 }
 
 export async function loadComplianceConfig(
@@ -144,20 +163,38 @@ export async function loadComplianceConfig(
     }
 
     const decodedContent = Buffer.from(response.data.content, "base64").toString("utf-8");
-    const parsed = yaml.load(decodedContent) as Partial<ComplianceRuleSet> | undefined;
+    const parsed = yaml.load(decodedContent) as ComplianceConfigFile | undefined;
+
+    const selectedPolicy = normalizePolicy(parsed?.policy);
+    const baseRules = selectedPolicy ? getPolicyPack(selectedPolicy) : defaultRules;
 
     return {
-      bannedFileIndicators: normalizeFileIndicators(parsed?.bannedFileIndicators),
-      bannedContentIndicators: normalizeContentIndicators(parsed?.bannedContentIndicators),
-      secretPatterns: normalizeSecretPatterns(parsed?.secretPatterns),
-      minimumSeverityToFail: normalizeSeverity(parsed?.minimumSeverityToFail, "high"),
-      ignorePaths: normalizeStringArray(parsed?.ignorePaths, []),
-      ignoreIndicators: normalizeStringArray(parsed?.ignoreIndicators, []),
+      bannedFileIndicators: normalizeFileIndicators(
+        parsed?.bannedFileIndicators,
+        baseRules.bannedFileIndicators
+      ),
+      bannedContentIndicators: normalizeContentIndicators(
+        parsed?.bannedContentIndicators,
+        baseRules.bannedContentIndicators
+      ),
+      secretPatterns: normalizeSecretPatterns(
+        parsed?.secretPatterns,
+        baseRules.secretPatterns
+      ),
+      minimumSeverityToFail: normalizeSeverity(
+        parsed?.minimumSeverityToFail,
+        baseRules.minimumSeverityToFail
+      ),
+      ignorePaths: normalizeStringArray(parsed?.ignorePaths, baseRules.ignorePaths),
+      ignoreIndicators: normalizeStringArray(
+        parsed?.ignoreIndicators,
+        baseRules.ignoreIndicators
+      ),
       inlineIgnoreComment:
         typeof parsed?.inlineIgnoreComment === "string" && parsed.inlineIgnoreComment.trim()
           ? parsed.inlineIgnoreComment
-          : defaultRules.inlineIgnoreComment,
-      scanMode: normalizeScanMode(parsed?.scanMode, defaultRules.scanMode)
+          : baseRules.inlineIgnoreComment,
+      scanMode: normalizeScanMode(parsed?.scanMode, baseRules.scanMode)
     };
   } catch (error: unknown) {
     const err = error as { status?: number };
