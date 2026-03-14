@@ -42,5 +42,8 @@ export const defaultRules: ComplianceRuleSet = {
       severity: "high"
     }
   ],
-  minimumSeverityToFail: "high"
+  minimumSeverityToFail: "high",
+  ignorePaths: [],
+  ignoreIndicators: [],
+  inlineIgnoreComment: "compliance-shield-ignore"
 };

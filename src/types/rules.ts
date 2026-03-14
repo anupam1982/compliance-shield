@@ -21,6 +21,9 @@ export interface ComplianceRuleSet {
   bannedContentIndicators: ContentIndicatorRule[];
   secretPatterns: SecretPatternRule[];
   minimumSeverityToFail: SeverityLevel;
+  ignorePaths: string[];
+  ignoreIndicators: string[];
+  inlineIgnoreComment: string;
 }
 
 export interface ComplianceViolation {

@@ -19,6 +19,15 @@ function normalizeSeverity(value: unknown, fallback: SeverityLevel): SeverityLev
     : fallback;
 }
 
+function normalizeStringArray(value: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const normalized = value.filter((item): item is string => typeof item === "string");
+  return normalized.length > 0 ? normalized : fallback;
+}
+
 function normalizeFileIndicators(value: unknown): FileIndicatorRule[] {
   if (!Array.isArray(value)) {
     return defaultRules.bannedFileIndicators;
@@ -133,7 +142,13 @@ export async function loadComplianceConfig(
       bannedFileIndicators: normalizeFileIndicators(parsed?.bannedFileIndicators),
       bannedContentIndicators: normalizeContentIndicators(parsed?.bannedContentIndicators),
       secretPatterns: normalizeSecretPatterns(parsed?.secretPatterns),
-      minimumSeverityToFail: normalizeSeverity(parsed?.minimumSeverityToFail, "high")
+      minimumSeverityToFail: normalizeSeverity(parsed?.minimumSeverityToFail, "high"),
+      ignorePaths: normalizeStringArray(parsed?.ignorePaths, []),
+      ignoreIndicators: normalizeStringArray(parsed?.ignoreIndicators, []),
+      inlineIgnoreComment:
+        typeof parsed?.inlineIgnoreComment === "string" && parsed.inlineIgnoreComment.trim()
+          ? parsed.inlineIgnoreComment
+          : defaultRules.inlineIgnoreComment
     };
   } catch (error: unknown) {
     const err = error as { status?: number };

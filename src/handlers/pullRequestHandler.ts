@@ -39,9 +39,9 @@ export async function handlePullRequest(
           .join("\n");
 
   const body = `
-🛡️ **Compliance Shield – Phase 8**
+🛡️ **Compliance Shield – Phase 9**
 
-I inspected this pull request using severity-aware compliance rules and inline annotations.
+I inspected this pull request using severity-aware compliance rules, inline annotations, and suppression controls.
 
 - **PR:** #${pr.number}
 - **Title:** ${pr.title}
@@ -52,6 +52,11 @@ I inspected this pull request using severity-aware compliance rules and inline a
 - **Violations found:** ${violations.length}
 - **Minimum severity to fail:** ${config.minimumSeverityToFail.toUpperCase()}
 - **PR status:** ${isBlocking ? "❌ BLOCKING" : "✅ PASSING"}
+
+### Suppression settings
+- **Ignored paths:** ${config.ignorePaths.join(", ") || "None"}
+- **Ignored indicators:** ${config.ignoreIndicators.join(", ") || "None"}
+- **Inline ignore comment:** ${config.inlineIgnoreComment}
 
 ### Changed files
 ${fileList || "- No files found"}

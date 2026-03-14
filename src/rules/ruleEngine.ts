@@ -26,12 +26,19 @@ export function hasBlockingViolations(
   return violations.some((violation) => getSeverityRank(violation.severity) >= threshold);
 }
 
+function shouldIgnorePath(fileName: string, ignorePaths: string[]): boolean {
+  return ignorePaths.some((ignorePath) => fileName.startsWith(ignorePath));
+}
+
+function shouldIgnoreIndicator(indicator: string, ignoreIndicators: string[]): boolean {
+  return ignoreIndicators.includes(indicator);
+}
+
 function findMatchingLineNumber(
   patch: string,
   matcher: (line: string) => boolean
-): number | undefined {
+): { line?: number; ignored: boolean } {
   const lines = patch.split("\n");
-
   let currentNewLine = 0;
 
   for (const line of lines) {
@@ -45,10 +52,13 @@ function findMatchingLineNumber(
 
     if (line.startsWith("+") && !line.startsWith("+++")) {
       currentNewLine += 1;
-
       const content = line.slice(1);
+
       if (matcher(content)) {
-        return currentNewLine;
+        return {
+          line: currentNewLine,
+          ignored: false
+        };
       }
 
       continue;
@@ -61,7 +71,48 @@ function findMatchingLineNumber(
     currentNewLine += 1;
   }
 
-  return undefined;
+  return { ignored: false };
+}
+
+function findMatchingLineWithInlineIgnore(
+  patch: string,
+  matcher: (line: string) => boolean,
+  inlineIgnoreComment: string
+): { line?: number; ignored: boolean } {
+  const lines = patch.split("\n");
+  let currentNewLine = 0;
+
+  for (const line of lines) {
+    if (line.startsWith("@@")) {
+      const match = line.match(/\+(\d+)(?:,(\d+))?/);
+      if (match) {
+        currentNewLine = Number.parseInt(match[1], 10) - 1;
+      }
+      continue;
+    }
+
+    if (line.startsWith("+") && !line.startsWith("+++")) {
+      currentNewLine += 1;
+      const content = line.slice(1);
+
+      if (matcher(content)) {
+        return {
+          line: currentNewLine,
+          ignored: content.includes(inlineIgnoreComment)
+        };
+      }
+
+      continue;
+    }
+
+    if (line.startsWith("-") && !line.startsWith("---")) {
+      continue;
+    }
+
+    currentNewLine += 1;
+  }
+
+  return { ignored: false };
 }
 
 export function runComplianceChecks(
@@ -71,9 +122,17 @@ export function runComplianceChecks(
   const violations: ComplianceViolation[] = [];
 
   for (const file of files) {
+    if (shouldIgnorePath(file.filename, rules.ignorePaths)) {
+      continue;
+    }
+
     const lowerFileName = file.filename.toLowerCase();
 
     for (const indicatorRule of rules.bannedFileIndicators) {
+      if (shouldIgnoreIndicator(indicatorRule.value, rules.ignoreIndicators)) {
+        continue;
+      }
+
       if (lowerFileName.includes(indicatorRule.value.toLowerCase())) {
         violations.push({
           type: "file",
@@ -88,10 +147,20 @@ export function runComplianceChecks(
     const patchContent = file.patch ?? "";
 
     for (const indicatorRule of rules.bannedContentIndicators) {
+      if (shouldIgnoreIndicator(indicatorRule.value, rules.ignoreIndicators)) {
+        continue;
+      }
+
       if (patchContent.includes(indicatorRule.value)) {
-        const line = findMatchingLineNumber(patchContent, (contentLine) =>
-          contentLine.includes(indicatorRule.value)
+        const matchResult = findMatchingLineWithInlineIgnore(
+          patchContent,
+          (contentLine) => contentLine.includes(indicatorRule.value),
+          rules.inlineIgnoreComment
         );
+
+        if (matchResult.ignored) {
+          continue;
+        }
 
         violations.push({
           type: "content",
@@ -99,21 +168,33 @@ export function runComplianceChecks(
           indicator: indicatorRule.value,
           severity: indicatorRule.severity,
           message: `Patch content contains banned indicator \`${indicatorRule.value}\`.`,
-          line
+          line: matchResult.line
         });
       }
     }
 
     for (const secretPattern of rules.secretPatterns) {
+      if (shouldIgnoreIndicator(secretPattern.name, rules.ignoreIndicators)) {
+        continue;
+      }
+
       try {
         const regex = new RegExp(secretPattern.pattern, "g");
         const matches = patchContent.match(regex);
 
         if (matches && matches.length > 0) {
-          const line = findMatchingLineNumber(patchContent, (contentLine) => {
-            const lineRegex = new RegExp(secretPattern.pattern);
-            return lineRegex.test(contentLine);
-          });
+          const matchResult = findMatchingLineWithInlineIgnore(
+            patchContent,
+            (contentLine) => {
+              const lineRegex = new RegExp(secretPattern.pattern);
+              return lineRegex.test(contentLine);
+            },
+            rules.inlineIgnoreComment
+          );
+
+          if (matchResult.ignored) {
+            continue;
+          }
 
           violations.push({
             type: "secret-pattern",
@@ -121,7 +202,7 @@ export function runComplianceChecks(
             indicator: secretPattern.name,
             severity: secretPattern.severity,
             message: `Patch content matched secret pattern \`${secretPattern.name}\`.`,
-            line
+            line: matchResult.line
           });
         }
       } catch {

@@ -34,3 +34,12 @@ secretPatterns:
   - name: Demo JWT Pattern
     pattern: DEMO_JWT_[A-Za-z0-9._-]+
     severity: medium
+
+ignorePaths:
+  - docs/
+  - fixtures/
+
+ignoreIndicators:
+  - TODO_SECRET
+
+inlineIgnoreComment: compliance-shield-ignore
