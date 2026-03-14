@@ -10,6 +10,7 @@ import {
 } from "../utils/violationFormatter";
 import { scanRepository } from "./repositoryScanner";
 import { RepositoryContextInfo } from "../types/githubContext";
+import { saveScanState } from "./scanStateStore";
 
 type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
 
@@ -49,7 +50,7 @@ export async function handlePullRequest(
       const repositoryScanResult = await scanRepository(context, repoInfo, config);
 
       repositoryScanSummary = `
-#### Repository scan
+### Repository scan
 - **Triggered:** Yes
 - **Scanned files:** ${repositoryScanResult.scannedFiles}
 - **Skipped files:** ${repositoryScanResult.skippedFiles}
@@ -60,6 +61,17 @@ export async function handlePullRequest(
 - **Limited by max files:** ${repositoryScanResult.limitedByMaxFiles ? "Yes" : "No"}
 - **Repository violations found:** ${repositoryScanResult.violations.length}
 `;
+
+      await saveScanState(context, repoInfo, {
+        lastUpdatedAt: new Date().toISOString(),
+        lastScanType: "repo",
+        lastPrNumber: pr.number,
+        lastScanMode: config.scanMode,
+        lastViolationsFound: repositoryScanResult.violations.length,
+        lastScannedFiles: repositoryScanResult.scannedFiles,
+        lastSkippedFiles: repositoryScanResult.skippedFiles,
+        lastTriggeredBy: pr.user.login
+      });
     } catch (error) {
       context.log.error("Failed to scan repository");
       context.log.error(error);
@@ -76,12 +88,27 @@ export async function handlePullRequest(
 - **Triggered:** No
 - Add \`[scan-repo]\` to the PR title to run a repository scan.
 `;
+
+    try {
+      await saveScanState(context, repoInfo, {
+        lastUpdatedAt: new Date().toISOString(),
+        lastScanType: "pr",
+        lastPrNumber: pr.number,
+        lastScanMode: config.scanMode,
+        lastViolationsFound: violations.length,
+        lastScannedFiles: inspectionResult.totalFiles,
+        lastTriggeredBy: pr.user.login
+      });
+    } catch (error) {
+      context.log.error("Failed to save PR scan state");
+      context.log.error(error);
+    }
   }
 
   const body = `
-🛡️ **Compliance Shield – Phase 16 Refactor**
+🛡️ **Compliance Shield – Phase 21**
 
-I inspected this pull request using typed shared repo context, policy packs, severity-aware rules, inline annotations, suppression controls, comment upsert behavior, configurable scan mode, deduplicated reporting, and optional repository scanning.
+I inspected this pull request using typed shared repo context, policy packs, severity-aware rules, inline annotations, suppression controls, comment upsert behavior, configurable scan mode, deduplicated reporting, optional repository scanning, and persisted scan state.
 
 - **PR:** #${pr.number}
 - **Title:** ${pr.title}

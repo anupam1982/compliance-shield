@@ -10,6 +10,7 @@ import { RepositoryContextInfo } from "../types/githubContext";
 import { upsertBotComment } from "../utils/commentUpsert";
 import { handlePullRequest } from "./pullRequestHandler";
 import { hasCommandPermission } from "../utils/permissionChecker";
+import { loadScanState, saveScanState } from "./scanStateStore";
 
 type IssueCommentEventName = "issue_comment.created";
 
@@ -48,6 +49,7 @@ export async function handleCommentCommand(
 
   const repo = context.payload.repository;
   const issue = context.payload.issue;
+  const actor = context.payload.comment.user.login;
 
   const repoInfo: RepositoryContextInfo = {
     owner: repo.owner.login,
@@ -107,6 +109,8 @@ Available commands:
     }
 
     try {
+      const lastState = await loadScanState(context, repoInfo);
+
       await upsertBotComment(
         context,
         repoInfo.owner,
@@ -131,6 +135,16 @@ Available commands:
 - **status:** ${config.commandPermissions.status}
 - **scan-repo:** ${config.commandPermissions["scan-repo"]}
 - **rescan:** ${config.commandPermissions.rescan}
+
+### Last scan state
+- **Last updated:** ${lastState?.lastUpdatedAt ?? "No scan recorded yet"}
+- **Last scan type:** ${lastState?.lastScanType ?? "N/A"}
+- **Last PR number:** ${lastState?.lastPrNumber ?? "N/A"}
+- **Last scan mode:** ${lastState?.lastScanMode ?? "N/A"}
+- **Last violations found:** ${lastState?.lastViolationsFound ?? "N/A"}
+- **Last scanned files:** ${lastState?.lastScannedFiles ?? "N/A"}
+- **Last skipped files:** ${lastState?.lastSkippedFiles ?? "N/A"}
+- **Last triggered by:** ${lastState?.lastTriggeredBy ?? "N/A"}
 
 ### Active rules
 - **Banned file indicators:** ${config.bannedFileIndicators.map((rule) => `${rule.value} (${rule.severity})`).join(", ") || "None"}
@@ -197,6 +211,17 @@ Try:
     try {
       const repositoryScanResult = await scanRepository(context, repoInfo, config);
       const violations = deduplicateViolations(repositoryScanResult.violations);
+
+      await saveScanState(context, repoInfo, {
+        lastUpdatedAt: new Date().toISOString(),
+        lastScanType: "repo",
+        lastPrNumber: issue.number,
+        lastScanMode: config.scanMode,
+        lastViolationsFound: violations.length,
+        lastScannedFiles: repositoryScanResult.scannedFiles,
+        lastSkippedFiles: repositoryScanResult.skippedFiles,
+        lastTriggeredBy: actor
+      });
 
       await upsertBotComment(
         context,
@@ -279,6 +304,16 @@ ${formatViolationsForComment(violations)}
       } as unknown as Context<"pull_request.opened" | "pull_request.synchronize">;
 
       await handlePullRequest(syntheticContext);
+
+      await saveScanState(context, repoInfo, {
+        lastUpdatedAt: new Date().toISOString(),
+        lastScanType: "pr",
+        lastPrNumber: issue.number,
+        lastScanMode: config.scanMode,
+        lastViolationsFound: 0,
+        lastScannedFiles: 0,
+        lastTriggeredBy: actor
+      });
 
       await upsertBotComment(
         context,
