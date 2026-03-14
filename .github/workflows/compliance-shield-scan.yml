@@ -25,6 +25,7 @@ jobs:
         env:
           APP_ID: ${{ secrets.COMPLIANCE_SHIELD_APP_ID }}
           PRIVATE_KEY: ${{ secrets.COMPLIANCE_SHIELD_PRIVATE_KEY }}
+          INSTALLATION_ID: ${{ secrets.COMPLIANCE_SHIELD_INSTALLATION_ID }}
           WEBHOOK_SECRET: ${{ secrets.COMPLIANCE_SHIELD_WEBHOOK_SECRET }}
           SCHEDULED_SCAN_OWNER: ${{ github.repository_owner }}
           SCHEDULED_SCAN_REPO: compliance-shield
