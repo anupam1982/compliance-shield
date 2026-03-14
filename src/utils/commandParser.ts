@@ -1,5 +1,5 @@
 export interface ComplianceShieldCommand {
-  command: "scan-repo" | "help" | "unknown";
+  command: "scan-repo" | "help" | "status" | "unknown";
 }
 
 const COMMAND_PREFIX = "/compliance-shield";
@@ -26,6 +26,8 @@ export function parseComplianceShieldCommand(
       return { command: "scan-repo" };
     case "help":
       return { command: "help" };
+    case "status":
+      return { command: "status" };
     default:
       return { command: "unknown" };
   }

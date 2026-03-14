@@ -7,6 +7,7 @@ import {
   formatViolationsForComment
 } from "../utils/violationFormatter";
 import { RepositoryContextInfo } from "../types/githubContext";
+import { upsertBotComment } from "../utils/commentUpsert";
 
 type IssueCommentEventName = "issue_comment.created";
 
@@ -38,59 +39,110 @@ export async function handleCommentCommand(
   };
 
   if (parsedCommand.command === "help") {
-    await context.octokit.issues.createComment({
-      owner: repoInfo.owner,
-      repo: repoInfo.repo,
-      issue_number: issue.number,
-      body: `
+    await upsertBotComment(
+      context,
+      repoInfo.owner,
+      repoInfo.repo,
+      issue.number,
+      `
 🛡️ **Compliance Shield Commands**
 
 Available commands:
 
 - \`/compliance-shield help\`
+- \`/compliance-shield status\`
 - \`/compliance-shield scan-repo\`
 `
-    });
+    );
+
+    return;
+  }
+
+  if (parsedCommand.command === "status") {
+    try {
+      const config = await loadComplianceConfig(context, repoInfo);
+
+      await upsertBotComment(
+        context,
+        repoInfo.owner,
+        repoInfo.repo,
+        issue.number,
+        `
+🛡️ **Compliance Shield Status**
+
+- **Repository:** ${repoInfo.owner}/${repoInfo.repo}
+- **Default branch:** ${repoInfo.defaultBranch}
+- **Scan mode:** ${config.scanMode}
+- **Minimum severity to fail:** ${config.minimumSeverityToFail.toUpperCase()}
+- **Max repository files:** ${config.maxRepositoryFiles}
+- **Max file size (KB):** ${config.maxFileSizeKB}
+- **Parallel fetch limit:** ${config.parallelFileFetchLimit}
+- **Ignored paths:** ${config.ignorePaths.join(", ") || "None"}
+- **Ignored indicators:** ${config.ignoreIndicators.join(", ") || "None"}
+- **Inline ignore comment:** ${config.inlineIgnoreComment}
+
+### Active rules
+- **Banned file indicators:** ${config.bannedFileIndicators.map((rule) => `${rule.value} (${rule.severity})`).join(", ") || "None"}
+- **Banned content indicators:** ${config.bannedContentIndicators.map((rule) => `${rule.value} (${rule.severity})`).join(", ") || "None"}
+- **Secret patterns:** ${config.secretPatterns.map((rule) => `${rule.name} (${rule.severity})`).join(", ") || "None"}
+`
+      );
+    } catch (error) {
+      context.log.error("Status command failed");
+      context.log.error(error);
+
+      await upsertBotComment(
+        context,
+        repoInfo.owner,
+        repoInfo.repo,
+        issue.number,
+        "🛡️ Failed to load Compliance Shield status."
+      );
+    }
 
     return;
   }
 
   if (parsedCommand.command === "unknown") {
-    await context.octokit.issues.createComment({
-      owner: repoInfo.owner,
-      repo: repoInfo.repo,
-      issue_number: issue.number,
-      body: `
+    await upsertBotComment(
+      context,
+      repoInfo.owner,
+      repoInfo.repo,
+      issue.number,
+      `
 🛡️ I did not recognize that command.
 
 Try:
 
 - \`/compliance-shield help\`
+- \`/compliance-shield status\`
 - \`/compliance-shield scan-repo\`
 `
-    });
+    );
 
     return;
   }
 
   if (parsedCommand.command === "scan-repo") {
-    await context.octokit.issues.createComment({
-      owner: repoInfo.owner,
-      repo: repoInfo.repo,
-      issue_number: issue.number,
-      body: "🛡️ Compliance Shield is scanning the repository. Please wait..."
-    });
+    await upsertBotComment(
+      context,
+      repoInfo.owner,
+      repoInfo.repo,
+      issue.number,
+      "🛡️ Compliance Shield is scanning the repository. Please wait..."
+    );
 
     try {
       const config = await loadComplianceConfig(context, repoInfo);
       const repositoryScanResult = await scanRepository(context, repoInfo, config);
       const violations = deduplicateViolations(repositoryScanResult.violations);
 
-      await context.octokit.issues.createComment({
-        owner: repoInfo.owner,
-        repo: repoInfo.repo,
-        issue_number: issue.number,
-        body: `
+      await upsertBotComment(
+        context,
+        repoInfo.owner,
+        repoInfo.repo,
+        issue.number,
+        `
 🛡️ **Compliance Shield Repository Scan Result**
 
 - **Scanned files:** ${repositoryScanResult.scannedFiles}
@@ -110,17 +162,18 @@ Try:
 ### Findings
 ${formatViolationsForComment(violations)}
 `
-      });
+      );
     } catch (error) {
       context.log.error("Repository scan command failed");
       context.log.error(error);
 
-      await context.octokit.issues.createComment({
-        owner: repoInfo.owner,
-        repo: repoInfo.repo,
-        issue_number: issue.number,
-        body: "🛡️ Repository scan failed. Please check the app logs."
-      });
+      await upsertBotComment(
+        context,
+        repoInfo.owner,
+        repoInfo.repo,
+        issue.number,
+        "🛡️ Repository scan failed. Please check the app logs."
+      );
     }
   }
 }
