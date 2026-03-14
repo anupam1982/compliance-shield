@@ -147,61 +147,103 @@ function normalizeSecretPatterns(
 export async function loadComplianceConfig(
   context: Context<PullRequestEventName>
 ): Promise<ComplianceRuleSet> {
-  const repo = context.payload.repository;
-  const owner = repo.owner.login;
-  const repoName = repo.name;
+
+  const repo = context.payload.repository
+  const owner = repo.owner.login
+  const repoName = repo.name
+
+  let orgConfig: ComplianceConfigFile | undefined
+  let repoConfig: ComplianceConfigFile | undefined
+
+  // -------- load org config --------
 
   try {
-    const response = await context.octokit.repos.getContent({
+    const orgResponse = await context.octokit.repos.getContent({
+      owner,
+      repo: repoName,
+      path: ".github/compliance-shield-org.yml"
+    })
+
+    if ("content" in orgResponse.data) {
+      const decoded = Buffer.from(orgResponse.data.content, "base64").toString("utf-8")
+      orgConfig = yaml.load(decoded) as ComplianceConfigFile
+    }
+
+  } catch (error) {
+    context.log.info("No org policy found")
+  }
+
+  // -------- load repo config --------
+
+  try {
+    const repoResponse = await context.octokit.repos.getContent({
       owner,
       repo: repoName,
       path: ".compliance-shield.yml"
-    });
+    })
 
-    if (!("content" in response.data)) {
-      return defaultRules;
+    if ("content" in repoResponse.data) {
+      const decoded = Buffer.from(repoResponse.data.content, "base64").toString("utf-8")
+      repoConfig = yaml.load(decoded) as ComplianceConfigFile
     }
 
-    const decodedContent = Buffer.from(response.data.content, "base64").toString("utf-8");
-    const parsed = yaml.load(decodedContent) as ComplianceConfigFile | undefined;
-
-    const selectedPolicy = normalizePolicy(parsed?.policy);
-    const baseRules = selectedPolicy ? getPolicyPack(selectedPolicy) : defaultRules;
-
-    return {
-      bannedFileIndicators: normalizeFileIndicators(
-        parsed?.bannedFileIndicators,
-        baseRules.bannedFileIndicators
-      ),
-      bannedContentIndicators: normalizeContentIndicators(
-        parsed?.bannedContentIndicators,
-        baseRules.bannedContentIndicators
-      ),
-      secretPatterns: normalizeSecretPatterns(
-        parsed?.secretPatterns,
-        baseRules.secretPatterns
-      ),
-      minimumSeverityToFail: normalizeSeverity(
-        parsed?.minimumSeverityToFail,
-        baseRules.minimumSeverityToFail
-      ),
-      ignorePaths: normalizeStringArray(parsed?.ignorePaths, baseRules.ignorePaths),
-      ignoreIndicators: normalizeStringArray(
-        parsed?.ignoreIndicators,
-        baseRules.ignoreIndicators
-      ),
-      inlineIgnoreComment:
-        typeof parsed?.inlineIgnoreComment === "string" && parsed.inlineIgnoreComment.trim()
-          ? parsed.inlineIgnoreComment
-          : baseRules.inlineIgnoreComment,
-      scanMode: normalizeScanMode(parsed?.scanMode, baseRules.scanMode)
-    };
-  } catch (error: unknown) {
-    const err = error as { status?: number };
-    if (err.status === 404) {
-      return defaultRules;
-    }
-    context.log.error(error);
-    return defaultRules;
+  } catch (error) {
+    context.log.info("No repo policy found")
   }
+
+  // -------- determine policy pack --------
+
+  const selectedPolicy =
+    repoConfig?.policy ??
+    orgConfig?.policy ??
+    "baseline"
+
+  const baseRules = getPolicyPack(selectedPolicy)
+
+  // -------- merge rules --------
+
+  const finalRules: ComplianceRuleSet = {
+
+    bannedFileIndicators:
+      repoConfig?.bannedFileIndicators ??
+      orgConfig?.bannedFileIndicators ??
+      baseRules.bannedFileIndicators,
+
+    bannedContentIndicators:
+      repoConfig?.bannedContentIndicators ??
+      orgConfig?.bannedContentIndicators ??
+      baseRules.bannedContentIndicators,
+
+    secretPatterns:
+      repoConfig?.secretPatterns ??
+      orgConfig?.secretPatterns ??
+      baseRules.secretPatterns,
+
+    minimumSeverityToFail:
+      repoConfig?.minimumSeverityToFail ??
+      orgConfig?.minimumSeverityToFail ??
+      baseRules.minimumSeverityToFail,
+
+    ignorePaths:
+      repoConfig?.ignorePaths ??
+      orgConfig?.ignorePaths ??
+      baseRules.ignorePaths,
+
+    ignoreIndicators:
+      repoConfig?.ignoreIndicators ??
+      orgConfig?.ignoreIndicators ??
+      baseRules.ignoreIndicators,
+
+    inlineIgnoreComment:
+      repoConfig?.inlineIgnoreComment ??
+      orgConfig?.inlineIgnoreComment ??
+      baseRules.inlineIgnoreComment,
+
+    scanMode:
+      repoConfig?.scanMode ??
+      orgConfig?.scanMode ??
+      baseRules.scanMode
+  }
+
+  return finalRules
 }

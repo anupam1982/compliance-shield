@@ -1,0 +1,11 @@
+policy: strict
+
+minimumSeverityToFail: high
+
+scanMode: full-file
+
+ignorePaths:
+  - docs/
+  - fixtures/
+
+inlineIgnoreComment: compliance-shield-ignore
