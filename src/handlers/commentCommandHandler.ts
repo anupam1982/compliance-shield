@@ -1,16 +1,13 @@
 import { Context } from "probot";
 import { parseComplianceShieldCommand } from "../utils/commandParser";
 import { loadComplianceConfig } from "../github/configLoader";
-import { scanRepository } from "./repositoryScanner";
-import {
-  deduplicateViolations,
-  formatViolationsForComment
-} from "../utils/violationFormatter";
+import { formatViolationsForComment } from "../utils/violationFormatter";
 import { RepositoryContextInfo } from "../types/githubContext";
 import { upsertBotComment } from "../utils/commentUpsert";
 import { handlePullRequest } from "./pullRequestHandler";
 import { hasCommandPermission } from "../utils/permissionChecker";
 import { loadScanState, saveScanState } from "./scanStateStore";
+import { runRepositoryScan } from "./scanService";
 
 type IssueCommentEventName = "issue_comment.created";
 
@@ -209,15 +206,14 @@ Try:
     );
 
     try {
-      const repositoryScanResult = await scanRepository(context, repoInfo, config);
-      const violations = deduplicateViolations(repositoryScanResult.violations);
+      const repositoryScanResult = await runRepositoryScan(context, repoInfo, config);
 
       await saveScanState(context, repoInfo, {
         lastUpdatedAt: new Date().toISOString(),
         lastScanType: "repo",
         lastPrNumber: issue.number,
         lastScanMode: config.scanMode,
-        lastViolationsFound: violations.length,
+        lastViolationsFound: repositoryScanResult.violations.length,
         lastScannedFiles: repositoryScanResult.scannedFiles,
         lastSkippedFiles: repositoryScanResult.skippedFiles,
         lastTriggeredBy: actor
@@ -238,7 +234,7 @@ Try:
 - **Skipped by size:** ${repositoryScanResult.skippedBySize}
 - **Skipped unreadable:** ${repositoryScanResult.skippedUnreadable}
 - **Limited by max files:** ${repositoryScanResult.limitedByMaxFiles ? "Yes" : "No"}
-- **Violations found:** ${violations.length}
+- **Violations found:** ${repositoryScanResult.violations.length}
 - **Minimum severity to fail:** ${config.minimumSeverityToFail.toUpperCase()}
 - **Scan mode:** ${config.scanMode}
 - **Parallel fetch limit:** ${config.parallelFileFetchLimit}
@@ -246,7 +242,7 @@ Try:
 - **Max file size (KB):** ${config.maxFileSizeKB}
 
 ### Findings
-${formatViolationsForComment(violations)}
+${formatViolationsForComment(repositoryScanResult.violations)}
 `
       );
     } catch (error) {
@@ -305,22 +301,21 @@ ${formatViolationsForComment(violations)}
 
       await handlePullRequest(syntheticContext);
 
-      await saveScanState(context, repoInfo, {
-        lastUpdatedAt: new Date().toISOString(),
-        lastScanType: "pr",
-        lastPrNumber: issue.number,
-        lastScanMode: config.scanMode,
-        lastViolationsFound: 0,
-        lastScannedFiles: 0,
-        lastTriggeredBy: actor
-      });
+      const lastState = await loadScanState(context, repoInfo);
 
       await upsertBotComment(
         context,
         repoInfo.owner,
         repoInfo.repo,
         issue.number,
-        "🛡️ Compliance Shield completed the rescan for this pull request."
+        `
+🛡️ Compliance Shield completed the rescan for this pull request.
+
+- **Last updated:** ${lastState?.lastUpdatedAt ?? "N/A"}
+- **Last scan type:** ${lastState?.lastScanType ?? "N/A"}
+- **Last violations found:** ${lastState?.lastViolationsFound ?? "N/A"}
+- **Last scanned files:** ${lastState?.lastScannedFiles ?? "N/A"}
+`
       );
     } catch (error) {
       context.log.error("Rescan command failed");

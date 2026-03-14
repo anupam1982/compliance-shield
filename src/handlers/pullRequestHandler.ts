@@ -1,16 +1,13 @@
 import { Context } from "probot";
-import { inspectPullRequestFiles } from "./prFileInspector";
-import { runComplianceChecks, hasBlockingViolations } from "../rules/ruleEngine";
+import { hasBlockingViolations } from "../rules/ruleEngine";
 import { reportCheckRun } from "./checkRunReporter";
 import { loadComplianceConfig } from "../github/configLoader";
 import { upsertPullRequestComment } from "./commentReporter";
-import {
-  deduplicateViolations,
-  formatViolationsForComment
-} from "../utils/violationFormatter";
-import { scanRepository } from "./repositoryScanner";
+import { formatViolationsForComment } from "../utils/violationFormatter";
 import { RepositoryContextInfo } from "../types/githubContext";
 import { saveScanState } from "./scanStateStore";
+import { runPullRequestScan, runRepositoryScan } from "./scanService";
+import { inspectPullRequestFiles } from "./prFileInspector";
 
 type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
 
@@ -30,9 +27,8 @@ export async function handlePullRequest(
   const shouldRunRepositoryScan = pr.title.includes("[scan-repo]");
 
   const inspectionResult = await inspectPullRequestFiles(context, config.scanMode);
-
-  const rawViolations = runComplianceChecks(inspectionResult.files, config);
-  const violations = deduplicateViolations(rawViolations);
+  const prScanResult = await runPullRequestScan(context, config);
+  const violations = prScanResult.violations;
   const isBlocking = hasBlockingViolations(violations, config.minimumSeverityToFail);
 
   const fileList = inspectionResult.files
@@ -47,7 +43,7 @@ export async function handlePullRequest(
 
   if (shouldRunRepositoryScan) {
     try {
-      const repositoryScanResult = await scanRepository(context, repoInfo, config);
+      const repositoryScanResult = await runRepositoryScan(context, repoInfo, config);
 
       repositoryScanSummary = `
 ### Repository scan
@@ -95,8 +91,9 @@ export async function handlePullRequest(
         lastScanType: "pr",
         lastPrNumber: pr.number,
         lastScanMode: config.scanMode,
-        lastViolationsFound: violations.length,
-        lastScannedFiles: inspectionResult.totalFiles,
+        lastViolationsFound: prScanResult.violations.length,
+        lastScannedFiles: prScanResult.scannedFiles,
+        lastSkippedFiles: prScanResult.skippedFiles,
         lastTriggeredBy: pr.user.login
       });
     } catch (error) {
@@ -106,9 +103,9 @@ export async function handlePullRequest(
   }
 
   const body = `
-🛡️ **Compliance Shield – Phase 21**
+🛡️ **Compliance Shield – Phase 22**
 
-I inspected this pull request using typed shared repo context, policy packs, severity-aware rules, inline annotations, suppression controls, comment upsert behavior, configurable scan mode, deduplicated reporting, optional repository scanning, and persisted scan state.
+I inspected this pull request using a shared scan engine, policy packs, severity-aware rules, inline annotations, suppression controls, comment upsert behavior, configurable scan mode, deduplicated reporting, optional repository scanning, and persisted scan state.
 
 - **PR:** #${pr.number}
 - **Title:** ${pr.title}
