@@ -8,6 +8,7 @@ import {
 } from "../utils/violationFormatter";
 import { RepositoryContextInfo } from "../types/githubContext";
 import { upsertBotComment } from "../utils/commentUpsert";
+import { handlePullRequest } from "./pullRequestHandler";
 
 type IssueCommentEventName = "issue_comment.created";
 
@@ -52,6 +53,7 @@ Available commands:
 - \`/compliance-shield help\`
 - \`/compliance-shield status\`
 - \`/compliance-shield scan-repo\`
+- \`/compliance-shield rescan\`
 `
     );
 
@@ -117,6 +119,7 @@ Try:
 - \`/compliance-shield help\`
 - \`/compliance-shield status\`
 - \`/compliance-shield scan-repo\`
+- \`/compliance-shield rescan\`
 `
     );
 
@@ -173,6 +176,55 @@ ${formatViolationsForComment(violations)}
         repoInfo.repo,
         issue.number,
         "🛡️ Repository scan failed. Please check the app logs."
+      );
+    }
+
+    return;
+  }
+
+  if (parsedCommand.command === "rescan") {
+    await upsertBotComment(
+      context,
+      repoInfo.owner,
+      repoInfo.repo,
+      issue.number,
+      "🛡️ Compliance Shield is rescanning this pull request. Please wait..."
+    );
+
+    try {
+      const prResponse = await context.octokit.pulls.get({
+        owner: repoInfo.owner,
+        repo: repoInfo.repo,
+        pull_number: issue.number
+      });
+
+      const syntheticContext = {
+        ...context,
+        payload: {
+          ...context.payload,
+          pull_request: prResponse.data
+        }
+      } as unknown as Context<"pull_request.opened" | "pull_request.synchronize">;
+
+      await handlePullRequest(syntheticContext);
+
+      await upsertBotComment(
+        context,
+        repoInfo.owner,
+        repoInfo.repo,
+        issue.number,
+        "🛡️ Compliance Shield completed the rescan for this pull request."
+      );
+    } catch (error) {
+      context.log.error("Rescan command failed");
+      context.log.error(error);
+
+      await upsertBotComment(
+        context,
+        repoInfo.owner,
+        repoInfo.repo,
+        issue.number,
+        "🛡️ Pull request rescan failed. Please check the app logs."
       );
     }
   }
