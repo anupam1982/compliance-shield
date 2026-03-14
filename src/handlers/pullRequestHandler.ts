@@ -3,6 +3,7 @@ import { inspectPullRequestFiles } from "./prFileInspector";
 import { runComplianceChecks, hasBlockingViolations } from "../rules/ruleEngine";
 import { reportCheckRun } from "./checkRunReporter";
 import { loadComplianceConfig } from "../github/configLoader";
+import { upsertPullRequestComment } from "./commentReporter";
 
 type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
 
@@ -39,9 +40,9 @@ export async function handlePullRequest(
           .join("\n");
 
   const body = `
-🛡️ **Compliance Shield – Phase 9**
+🛡️ **Compliance Shield – Phase 10**
 
-I inspected this pull request using severity-aware compliance rules, inline annotations, and suppression controls.
+I inspected this pull request using severity-aware compliance rules, inline annotations, suppression controls, and comment upsert behavior.
 
 - **PR:** #${pr.number}
 - **Title:** ${pr.title}
@@ -66,14 +67,9 @@ ${violationSection}
 `;
 
   try {
-    await context.octokit.issues.createComment({
-      owner,
-      repo: repoName,
-      issue_number: pr.number,
-      body
-    });
+    await upsertPullRequestComment(context, owner, repoName, pr.number, body);
   } catch (error) {
-    context.log.error("Failed to create PR comment");
+    context.log.error("Failed to create or update PR comment");
     context.log.error(error);
   }
 

@@ -1,0 +1,1 @@
+export const COMPLIANCE_SHIELD_COMMENT_MARKER = "<!-- compliance-shield-comment -->";
