@@ -1,4 +1,5 @@
 export type SeverityLevel = "low" | "medium" | "high" | "critical";
+export type ScanMode = "diff" | "full-file";
 
 export interface SecretPatternRule {
   name: string;
@@ -24,6 +25,7 @@ export interface ComplianceRuleSet {
   ignorePaths: string[];
   ignoreIndicators: string[];
   inlineIgnoreComment: string;
+  scanMode: ScanMode;
 }
 
 export interface ComplianceViolation {

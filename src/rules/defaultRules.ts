@@ -45,5 +45,6 @@ export const defaultRules: ComplianceRuleSet = {
   minimumSeverityToFail: "high",
   ignorePaths: [],
   ignoreIndicators: [],
-  inlineIgnoreComment: "compliance-shield-ignore"
+  inlineIgnoreComment: "compliance-shield-ignore",
+  scanMode: "diff"
 };

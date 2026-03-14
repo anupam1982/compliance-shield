@@ -3,6 +3,7 @@ import { ComplianceRuleSet, ComplianceViolation, SeverityLevel } from "../types/
 export interface PullRequestFileForScan {
   filename: string;
   patch?: string;
+  fullContent?: string;
 }
 
 export function getSeverityRank(severity: SeverityLevel): number {
@@ -34,82 +35,55 @@ function shouldIgnoreIndicator(indicator: string, ignoreIndicators: string[]): b
   return ignoreIndicators.includes(indicator);
 }
 
-function findMatchingLineNumber(
-  patch: string,
-  matcher: (line: string) => boolean
-): { line?: number; ignored: boolean } {
-  const lines = patch.split("\n");
-  let currentNewLine = 0;
-
-  for (const line of lines) {
-    if (line.startsWith("@@")) {
-      const match = line.match(/\+(\d+)(?:,(\d+))?/);
-      if (match) {
-        currentNewLine = Number.parseInt(match[1], 10) - 1;
-      }
-      continue;
-    }
-
-    if (line.startsWith("+") && !line.startsWith("+++")) {
-      currentNewLine += 1;
-      const content = line.slice(1);
-
-      if (matcher(content)) {
-        return {
-          line: currentNewLine,
-          ignored: false
-        };
-      }
-
-      continue;
-    }
-
-    if (line.startsWith("-") && !line.startsWith("---")) {
-      continue;
-    }
-
-    currentNewLine += 1;
-  }
-
-  return { ignored: false };
-}
-
 function findMatchingLineWithInlineIgnore(
-  patch: string,
+  sourceText: string,
   matcher: (line: string) => boolean,
-  inlineIgnoreComment: string
+  inlineIgnoreComment: string,
+  isPatch: boolean
 ): { line?: number; ignored: boolean } {
-  const lines = patch.split("\n");
-  let currentNewLine = 0;
+  const lines = sourceText.split("\n");
+  let currentLine = 0;
 
   for (const line of lines) {
-    if (line.startsWith("@@")) {
-      const match = line.match(/\+(\d+)(?:,(\d+))?/);
-      if (match) {
-        currentNewLine = Number.parseInt(match[1], 10) - 1;
-      }
-      continue;
-    }
-
-    if (line.startsWith("+") && !line.startsWith("+++")) {
-      currentNewLine += 1;
-      const content = line.slice(1);
-
-      if (matcher(content)) {
-        return {
-          line: currentNewLine,
-          ignored: content.includes(inlineIgnoreComment)
-        };
+    if (isPatch) {
+      if (line.startsWith("@@")) {
+        const match = line.match(/\+(\d+)(?:,(\d+))?/);
+        if (match) {
+          currentLine = Number.parseInt(match[1], 10) - 1;
+        }
+        continue;
       }
 
+      if (line.startsWith("+") && !line.startsWith("+++")) {
+        currentLine += 1;
+        const content = line.slice(1);
+
+        if (matcher(content)) {
+          return {
+            line: currentLine,
+            ignored: content.includes(inlineIgnoreComment)
+          };
+        }
+
+        continue;
+      }
+
+      if (line.startsWith("-") && !line.startsWith("---")) {
+        continue;
+      }
+
+      currentLine += 1;
       continue;
     }
 
-    if (line.startsWith("-") && !line.startsWith("---")) {
-      continue;
-    }
+    currentLine += 1;
 
-    currentNewLine += 1;
+    if (matcher(line)) {
+      return {
+        line: currentLine,
+        ignored: line.includes(inlineIgnoreComment)
+      };
+    }
   }
 
   return { ignored: false };
@@ -144,18 +118,20 @@ export function runComplianceChecks(
       }
     }
 
-    const patchContent = file.patch ?? "";
+    const scanSource = file.fullContent ?? file.patch ?? "";
+    const isPatchMode = !file.fullContent;
 
     for (const indicatorRule of rules.bannedContentIndicators) {
       if (shouldIgnoreIndicator(indicatorRule.value, rules.ignoreIndicators)) {
         continue;
       }
 
-      if (patchContent.includes(indicatorRule.value)) {
+      if (scanSource.includes(indicatorRule.value)) {
         const matchResult = findMatchingLineWithInlineIgnore(
-          patchContent,
+          scanSource,
           (contentLine) => contentLine.includes(indicatorRule.value),
-          rules.inlineIgnoreComment
+          rules.inlineIgnoreComment,
+          isPatchMode
         );
 
         if (matchResult.ignored) {
@@ -167,7 +143,7 @@ export function runComplianceChecks(
           fileName: file.filename,
           indicator: indicatorRule.value,
           severity: indicatorRule.severity,
-          message: `Patch content contains banned indicator \`${indicatorRule.value}\`.`,
+          message: `Content contains banned indicator \`${indicatorRule.value}\`.`,
           line: matchResult.line
         });
       }
@@ -180,16 +156,17 @@ export function runComplianceChecks(
 
       try {
         const regex = new RegExp(secretPattern.pattern, "g");
-        const matches = patchContent.match(regex);
+        const matches = scanSource.match(regex);
 
         if (matches && matches.length > 0) {
           const matchResult = findMatchingLineWithInlineIgnore(
-            patchContent,
+            scanSource,
             (contentLine) => {
               const lineRegex = new RegExp(secretPattern.pattern);
               return lineRegex.test(contentLine);
             },
-            rules.inlineIgnoreComment
+            rules.inlineIgnoreComment,
+            isPatchMode
           );
 
           if (matchResult.ignored) {
@@ -201,7 +178,7 @@ export function runComplianceChecks(
             fileName: file.filename,
             indicator: secretPattern.name,
             severity: secretPattern.severity,
-            message: `Patch content matched secret pattern \`${secretPattern.name}\`.`,
+            message: `Content matched secret pattern \`${secretPattern.name}\`.`,
             line: matchResult.line
           });
         }

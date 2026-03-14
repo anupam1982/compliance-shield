@@ -1,13 +1,39 @@
 import { Context } from "probot";
-import {
-  PullRequestFileSummary,
-  PullRequestInspectionResult
-} from "../types/pullRequest";
+import { PullRequestFileSummary, PullRequestInspectionResult } from "../types/pullRequest";
+import { ScanMode } from "../types/rules";
 
 type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
 
+async function getFullFileContent(
+  context: Context<PullRequestEventName>,
+  owner: string,
+  repo: string,
+  path: string,
+  ref: string
+): Promise<string | undefined> {
+  try {
+    const response = await context.octokit.repos.getContent({
+      owner,
+      repo,
+      path,
+      ref
+    });
+
+    if (!("content" in response.data)) {
+      return undefined;
+    }
+
+    return Buffer.from(response.data.content, "base64").toString("utf-8");
+  } catch (error) {
+    context.log.warn(`Could not load full content for ${path}`);
+    context.log.warn(error);
+    return undefined;
+  }
+}
+
 export async function inspectPullRequestFiles(
-  context: Context<PullRequestEventName>
+  context: Context<PullRequestEventName>,
+  scanMode: ScanMode
 ): Promise<PullRequestInspectionResult> {
   const repo = context.payload.repository;
   const pr = context.payload.pull_request;
@@ -15,6 +41,7 @@ export async function inspectPullRequestFiles(
   const owner = repo.owner.login;
   const repoName = repo.name;
   const pullNumber = pr.number;
+  const headSha = pr.head.sha;
 
   const filesResponse = await context.octokit.pulls.listFiles({
     owner,
@@ -23,14 +50,32 @@ export async function inspectPullRequestFiles(
     per_page: 100
   });
 
-  const files: PullRequestFileSummary[] = filesResponse.data.map((file) => ({
-    filename: file.filename,
-    status: file.status,
-    additions: file.additions,
-    deletions: file.deletions,
-    changes: file.changes,
-    patch: file.patch ?? ""
-  }));
+  const files: PullRequestFileSummary[] = [];
+
+  for (const file of filesResponse.data) {
+    const summary: PullRequestFileSummary = {
+      filename: file.filename,
+      status: file.status,
+      additions: file.additions,
+      deletions: file.deletions,
+      changes: file.changes,
+      patch: file.patch ?? ""
+    };
+
+    const isLikelyTextFile = file.status !== "removed";
+
+    if (scanMode === "full-file" && isLikelyTextFile) {
+      summary.fullContent = await getFullFileContent(
+        context,
+        owner,
+        repoName,
+        file.filename,
+        headSha
+      );
+    }
+
+    files.push(summary);
+  }
 
   const totalAdditions = files.reduce((sum, file) => sum + file.additions, 0);
   const totalDeletions = files.reduce((sum, file) => sum + file.deletions, 0);

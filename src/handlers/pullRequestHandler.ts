@@ -17,7 +17,7 @@ export async function handlePullRequest(
   const repoName = repo.name;
 
   const config = await loadComplianceConfig(context);
-  const inspectionResult = await inspectPullRequestFiles(context);
+  const inspectionResult = await inspectPullRequestFiles(context, config.scanMode);
   const violations = runComplianceChecks(inspectionResult.files, config);
   const isBlocking = hasBlockingViolations(violations, config.minimumSeverityToFail);
 
@@ -40,9 +40,9 @@ export async function handlePullRequest(
           .join("\n");
 
   const body = `
-🛡️ **Compliance Shield – Phase 10**
+🛡️ **Compliance Shield – Phase 11**
 
-I inspected this pull request using severity-aware compliance rules, inline annotations, suppression controls, and comment upsert behavior.
+I inspected this pull request using severity-aware compliance rules, inline annotations, suppression controls, comment upsert behavior, and configurable scan mode.
 
 - **PR:** #${pr.number}
 - **Title:** ${pr.title}
@@ -52,6 +52,7 @@ I inspected this pull request using severity-aware compliance rules, inline anno
 - **Lines removed:** ${inspectionResult.totalDeletions}
 - **Violations found:** ${violations.length}
 - **Minimum severity to fail:** ${config.minimumSeverityToFail.toUpperCase()}
+- **Scan mode:** ${config.scanMode}
 - **PR status:** ${isBlocking ? "❌ BLOCKING" : "✅ PASSING"}
 
 ### Suppression settings
@@ -65,7 +66,6 @@ ${fileList || "- No files found"}
 ### Compliance report
 ${violationSection}
 `;
-
   try {
     await upsertPullRequestComment(context, owner, repoName, pr.number, body);
   } catch (error) {

@@ -5,6 +5,7 @@ import {
   ComplianceRuleSet,
   ContentIndicatorRule,
   FileIndicatorRule,
+  ScanMode,
   SecretPatternRule,
   SeverityLevel
 } from "../types/rules";
@@ -12,10 +13,17 @@ import {
 type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
 
 const validSeverityLevels: SeverityLevel[] = ["low", "medium", "high", "critical"];
+const validScanModes: ScanMode[] = ["diff", "full-file"];
 
 function normalizeSeverity(value: unknown, fallback: SeverityLevel): SeverityLevel {
   return typeof value === "string" && validSeverityLevels.includes(value as SeverityLevel)
     ? (value as SeverityLevel)
+    : fallback;
+}
+
+function normalizeScanMode(value: unknown, fallback: ScanMode): ScanMode {
+  return typeof value === "string" && validScanModes.includes(value as ScanMode)
+    ? (value as ScanMode)
     : fallback;
 }
 
@@ -148,7 +156,8 @@ export async function loadComplianceConfig(
       inlineIgnoreComment:
         typeof parsed?.inlineIgnoreComment === "string" && parsed.inlineIgnoreComment.trim()
           ? parsed.inlineIgnoreComment
-          : defaultRules.inlineIgnoreComment
+          : defaultRules.inlineIgnoreComment,
+      scanMode: normalizeScanMode(parsed?.scanMode, defaultRules.scanMode)
     };
   } catch (error: unknown) {
     const err = error as { status?: number };

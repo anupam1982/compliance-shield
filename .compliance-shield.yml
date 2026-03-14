@@ -1,3 +1,4 @@
+scanMode: full-file
 minimumSeverityToFail: high
 
 bannedFileIndicators:
