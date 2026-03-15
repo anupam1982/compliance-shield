@@ -1,10 +1,8 @@
 import { Context } from "probot";
 import { parseComplianceShieldCommand } from "../utils/commandParser";
 import { loadComplianceConfig } from "../github/configLoader";
-import { formatViolationsForComment } from "../utils/violationFormatter";
 import { RepositoryContextInfo } from "../types/githubContext";
 import { upsertBotComment } from "../utils/commentUpsert";
-import { handlePullRequest } from "./pullRequestHandler";
 import { hasCommandPermission } from "../utils/permissionChecker";
 import {
   appendScanHistory,
@@ -13,6 +11,8 @@ import {
   saveScanState
 } from "./scanStateStore";
 import { runRepositoryScan } from "./scanService";
+import { formatViolationsForComment } from "../utils/violationFormatter";
+import { handlePullRequest } from "./pullRequestHandler";
 
 type IssueCommentEventName = "issue_comment.created";
 
@@ -61,6 +61,12 @@ export async function handleCommentCommand(
 
   const config = await loadComplianceConfig(context, repoInfo);
 
+  /*
+  ======================
+  HELP COMMAND
+  ======================
+  */
+
   if (parsedCommand.command === "help") {
     const allowed = await hasCommandPermission(
       context,
@@ -96,8 +102,15 @@ Available commands:
 - **rescan:** ${config.commandPermissions.rescan}
 `
     );
+
     return;
   }
+
+  /*
+  ======================
+  STATUS COMMAND
+  ======================
+  */
 
   if (parsedCommand.command === "status") {
     const allowed = await hasCommandPermission(
@@ -111,66 +124,46 @@ Available commands:
       return;
     }
 
-    try {
-      const lastState = await loadScanState(context, repoInfo);
-      const history = await loadScanHistory(context, repoInfo);
+    const state = await loadScanState(context, repoInfo);
+    const history = await loadScanHistory(context, repoInfo);
 
-      const recentHistory = history.entries
-        .slice(0, 5)
-        .map(
-          (entry, index) =>
-            `${index + 1}. **${entry.scanType.toUpperCase()}** • ${entry.timestamp} • Violations: ${entry.violationsFound} • Files: ${entry.scannedFiles}${entry.prNumber ? ` • PR #${entry.prNumber}` : ""}${entry.triggeredBy ? ` • By: ${entry.triggeredBy}` : ""}`
-        )
-        .join("\n");
+    const recentHistory = history.entries
+      .slice(0, 5)
+      .map(
+        (entry, index) =>
+          `${index + 1}. **${entry.scanType.toUpperCase()}** • ${entry.timestamp} • Violations: ${entry.violationsFound} • Files: ${entry.scannedFiles}`
+      )
+      .join("\n");
 
-      await upsertBotComment(
-        context,
-        repoInfo.owner,
-        repoInfo.repo,
-        issue.number,
-        `
+    await upsertBotComment(
+      context,
+      repoInfo.owner,
+      repoInfo.repo,
+      issue.number,
+      `
 🛡️ **Compliance Shield Status**
 
-- **Repository:** ${repoInfo.owner}/${repoInfo.repo}
-- **Default branch:** ${repoInfo.defaultBranch}
-- **Scan mode:** ${config.scanMode}
-- **Minimum severity to fail:** ${config.minimumSeverityToFail.toUpperCase()}
-- **Max repository files:** ${config.maxRepositoryFiles}
-- **Max file size (KB):** ${config.maxFileSizeKB}
-- **Parallel fetch limit:** ${config.parallelFileFetchLimit}
-- **Ignored paths:** ${config.ignorePaths.join(", ") || "None"}
-- **Ignored indicators:** ${config.ignoreIndicators.join(", ") || "None"}
-- **Inline ignore comment:** ${config.inlineIgnoreComment}
+**Repository:** ${repoInfo.owner}/${repoInfo.repo}
 
 ### Last scan state
-- **Last updated:** ${lastState?.lastUpdatedAt ?? "No scan recorded yet"}
-- **Last scan type:** ${lastState?.lastScanType ?? "N/A"}
-- **Last PR number:** ${lastState?.lastPrNumber ?? "N/A"}
-- **Last scan mode:** ${lastState?.lastScanMode ?? "N/A"}
-- **Last violations found:** ${lastState?.lastViolationsFound ?? "N/A"}
-- **Last scanned files:** ${lastState?.lastScannedFiles ?? "N/A"}
-- **Last skipped files:** ${lastState?.lastSkippedFiles ?? "N/A"}
-- **Last triggered by:** ${lastState?.lastTriggeredBy ?? "N/A"}
+- Last updated: ${state?.lastUpdatedAt ?? "None"}
+- Last scan type: ${state?.lastScanType ?? "None"}
+- Violations: ${state?.lastViolationsFound ?? 0}
+- Files scanned: ${state?.lastScannedFiles ?? 0}
 
-### Recent history
+### Recent scans
 ${recentHistory || "No scan history yet"}
 `
-      );
-    } catch (error) {
-      context.log.error("Status command failed");
-      context.log.error(error);
-
-      await upsertBotComment(
-        context,
-        repoInfo.owner,
-        repoInfo.repo,
-        issue.number,
-        "🛡️ Failed to load Compliance Shield status."
-      );
-    }
+    );
 
     return;
   }
+
+  /*
+  ======================
+  HISTORY COMMAND
+  ======================
+  */
 
   if (parsedCommand.command === "history") {
     const allowed = await hasCommandPermission(
@@ -184,64 +177,36 @@ ${recentHistory || "No scan history yet"}
       return;
     }
 
-    try {
-      const history = await loadScanHistory(context, repoInfo);
+    const history = await loadScanHistory(context, repoInfo);
 
-      const historyText = history.entries
-        .slice(0, 20)
-        .map(
-          (entry, index) =>
-            `${index + 1}. **${entry.scanType.toUpperCase()}** • ${entry.timestamp} • Violations: ${entry.violationsFound} • Files: ${entry.scannedFiles} • Skipped: ${entry.skippedFiles ?? 0}${entry.prNumber ? ` • PR #${entry.prNumber}` : ""}${entry.triggeredBy ? ` • By: ${entry.triggeredBy}` : ""}`
-        )
-        .join("\n");
+    const historyText = history.entries
+      .slice(0, 20)
+      .map(
+        (entry, index) =>
+          `${index + 1}. **${entry.scanType.toUpperCase()}** • ${entry.timestamp} • Violations: ${entry.violationsFound} • Files: ${entry.scannedFiles}`
+      )
+      .join("\n");
 
-      await upsertBotComment(
-        context,
-        repoInfo.owner,
-        repoInfo.repo,
-        issue.number,
-        `
-🛡️ **Compliance Shield Scan History**
-
-${historyText || "No scan history yet"}
-`
-      );
-    } catch (error) {
-      context.log.error("History command failed");
-      context.log.error(error);
-
-      await upsertBotComment(
-        context,
-        repoInfo.owner,
-        repoInfo.repo,
-        issue.number,
-        "🛡️ Failed to load Compliance Shield history."
-      );
-    }
-
-    return;
-  }
-
-  if (parsedCommand.command === "unknown") {
     await upsertBotComment(
       context,
       repoInfo.owner,
       repoInfo.repo,
       issue.number,
       `
-🛡️ I did not recognize that command.
+🛡️ **Compliance Shield Scan History**
 
-Try:
-
-- \`/compliance-shield help\`
-- \`/compliance-shield status\`
-- \`/compliance-shield history\`
-- \`/compliance-shield scan-repo\`
-- \`/compliance-shield rescan\`
+${historyText || "No scan history yet"}
 `
     );
+
     return;
   }
+
+  /*
+  ======================
+  SCAN REPO COMMAND
+  ======================
+  */
 
   if (parsedCommand.command === "scan-repo") {
     const allowed = await hasCommandPermission(
@@ -260,70 +225,55 @@ Try:
       repoInfo.owner,
       repoInfo.repo,
       issue.number,
-      "🛡️ Compliance Shield is scanning the repository. Please wait..."
+      "🛡️ Compliance Shield is scanning the repository..."
     );
 
-    try {
-      const repositoryScanResult = await runRepositoryScan(context, repoInfo, config);
+    const result = await runRepositoryScan(context, repoInfo, config);
 
-      await saveScanState(context, repoInfo, {
-        lastUpdatedAt: new Date().toISOString(),
-        lastScanType: "repo",
-        lastPrNumber: issue.number,
-        lastScanMode: config.scanMode,
-        lastViolationsFound: repositoryScanResult.violations.length,
-        lastScannedFiles: repositoryScanResult.scannedFiles,
-        lastSkippedFiles: repositoryScanResult.skippedFiles,
-        lastTriggeredBy: actor
-      });
+    await saveScanState(context, repoInfo, {
+      lastUpdatedAt: new Date().toISOString(),
+      lastScanType: "repo",
+      lastScanMode: config.scanMode,
+      lastViolationsFound: result.violations.length,
+      lastScannedFiles: result.scannedFiles,
+      lastSkippedFiles: result.skippedFiles,
+      lastTriggeredBy: actor
+    });
 
-      await appendScanHistory(context, repoInfo, {
-        timestamp: new Date().toISOString(),
-        scanType: "repo",
-        prNumber: issue.number,
-        scanMode: config.scanMode,
-        violationsFound: repositoryScanResult.violations.length,
-        scannedFiles: repositoryScanResult.scannedFiles,
-        skippedFiles: repositoryScanResult.skippedFiles,
-        triggeredBy: actor
-      });
+    await appendScanHistory(context, repoInfo, {
+      timestamp: new Date().toISOString(),
+      scanType: "repo",
+      scanMode: config.scanMode,
+      violationsFound: result.violations.length,
+      scannedFiles: result.scannedFiles,
+      skippedFiles: result.skippedFiles,
+      triggeredBy: actor
+    });
 
-      await upsertBotComment(
-        context,
-        repoInfo.owner,
-        repoInfo.repo,
-        issue.number,
-        `
-🛡️ **Compliance Shield Repository Scan Result**
+    await upsertBotComment(
+      context,
+      repoInfo.owner,
+      repoInfo.repo,
+      issue.number,
+      `
+🛡️ **Repository Scan Result**
 
-- **Scanned files:** ${repositoryScanResult.scannedFiles}
-- **Skipped files:** ${repositoryScanResult.skippedFiles}
-- **Skipped by extension:** ${repositoryScanResult.skippedByExtension}
-- **Skipped by path:** ${repositoryScanResult.skippedByPath}
-- **Skipped by size:** ${repositoryScanResult.skippedBySize}
-- **Skipped unreadable:** ${repositoryScanResult.skippedUnreadable}
-- **Limited by max files:** ${repositoryScanResult.limitedByMaxFiles ? "Yes" : "No"}
-- **Violations found:** ${repositoryScanResult.violations.length}
+Files scanned: ${result.scannedFiles}  
+Skipped files: ${result.skippedFiles}  
+Violations found: ${result.violations.length}
 
-### Findings
-${formatViolationsForComment(repositoryScanResult.violations)}
+${formatViolationsForComment(result.violations)}
 `
-      );
-    } catch (error) {
-      context.log.error("Repository scan command failed");
-      context.log.error(error);
-
-      await upsertBotComment(
-        context,
-        repoInfo.owner,
-        repoInfo.repo,
-        issue.number,
-        "🛡️ Repository scan failed. Please check the app logs."
-      );
-    }
+    );
 
     return;
   }
+
+  /*
+  ======================
+  RESCAN COMMAND
+  ======================
+  */
 
   if (parsedCommand.command === "rescan") {
     const allowed = await hasCommandPermission(
@@ -342,69 +292,56 @@ ${formatViolationsForComment(repositoryScanResult.violations)}
       repoInfo.owner,
       repoInfo.repo,
       issue.number,
-      "🛡️ Compliance Shield is rescanning this pull request. Please wait..."
+      "🛡️ Compliance Shield is rescanning this pull request..."
     );
 
-    try {
-      const prResponse = await context.octokit.pulls.get({
-        owner: repoInfo.owner,
-        repo: repoInfo.repo,
-        pull_number: issue.number
-      });
+    const prResponse = await context.octokit.pulls.get({
+      owner: repoInfo.owner,
+      repo: repoInfo.repo,
+      pull_number: issue.number
+    });
 
-      const syntheticContext = {
-        ...context,
-        payload: {
-          ...context.payload,
-          action: "synchronize",
-          number: issue.number,
-          pull_request: prResponse.data,
-          repository: context.payload.repository
-        }
-      } as unknown as Context<"pull_request.opened" | "pull_request.synchronize">;
-
-      await handlePullRequest(syntheticContext);
-
-      const lastState = await loadScanState(context, repoInfo);
-
-      if (lastState) {
-        await appendScanHistory(context, repoInfo, {
-          timestamp: lastState.lastUpdatedAt,
-          scanType: lastState.lastScanType,
-          prNumber: lastState.lastPrNumber,
-          scanMode: lastState.lastScanMode,
-          violationsFound: lastState.lastViolationsFound,
-          scannedFiles: lastState.lastScannedFiles,
-          skippedFiles: lastState.lastSkippedFiles,
-          triggeredBy: actor
-        });
+    const syntheticContext = {
+      ...context,
+      payload: {
+        ...context.payload,
+        action: "synchronize",
+        number: issue.number,
+        pull_request: prResponse.data,
+        repository: context.payload.repository
       }
+    } as unknown as Context<"pull_request.opened">;
 
-      await upsertBotComment(
-        context,
-        repoInfo.owner,
-        repoInfo.repo,
-        issue.number,
-        `
-🛡️ Compliance Shield completed the rescan for this pull request.
+    await handlePullRequest(syntheticContext);
 
-- **Last updated:** ${lastState?.lastUpdatedAt ?? "N/A"}
-- **Last scan type:** ${lastState?.lastScanType ?? "N/A"}
-- **Last violations found:** ${lastState?.lastViolationsFound ?? "N/A"}
-- **Last scanned files:** ${lastState?.lastScannedFiles ?? "N/A"}
-`
-      );
-    } catch (error) {
-      context.log.error("Rescan command failed");
-      context.log.error(error);
+    await upsertBotComment(
+      context,
+      repoInfo.owner,
+      repoInfo.repo,
+      issue.number,
+      "🛡️ Pull request rescan completed."
+    );
 
-      await upsertBotComment(
-        context,
-        repoInfo.owner,
-        repoInfo.repo,
-        issue.number,
-        "🛡️ Pull request rescan failed. Please check the app logs."
-      );
-    }
+    return;
   }
+
+  /*
+  ======================
+  UNKNOWN COMMAND
+  ======================
+  */
+
+  await upsertBotComment(
+    context,
+    repoInfo.owner,
+    repoInfo.repo,
+    issue.number,
+    `
+🛡️ Unknown Compliance Shield command.
+
+Try:
+
+- \`/compliance-shield help\`
+`
+  );
 }

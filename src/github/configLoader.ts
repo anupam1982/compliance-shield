@@ -15,6 +15,7 @@ import {
   SeverityLevel
 } from "../types/rules";
 import { RepositoryContextInfo } from "../types/githubContext";
+import { validateComplianceConfig } from "../utils/configValidator";
 
 const validSeverityLevels: SeverityLevel[] = ["low", "medium", "high", "critical"];
 const validScanModes: ScanMode[] = ["diff", "full-file"];
@@ -196,7 +197,16 @@ async function loadYamlConfigFile(
     }
 
     const decodedContent = Buffer.from(response.data.content, "base64").toString("utf-8");
-    return yaml.load(decodedContent) as ComplianceConfigFile;
+    const parsed = yaml.load(decodedContent) as ComplianceConfigFile;
+    const validation = validateComplianceConfig(parsed);
+    if (!validation.isValid) {
+      context.log.error(`Invalid config in ${path}`);
+      for (const error of validation.errors) {
+        context.log.error(error);
+      }
+      return undefined;
+    }
+    return parsed;
   } catch (error: unknown) {
     const err = error as { status?: number };
     if (err.status !== 404) {
