@@ -5,9 +5,9 @@ import { loadComplianceConfig } from "../github/configLoader";
 import { upsertPullRequestComment } from "./commentReporter";
 import { formatViolationsForComment } from "../utils/violationFormatter";
 import { RepositoryContextInfo } from "../types/githubContext";
-import { appendScanHistory, saveScanState } from "./scanStateStore";
 import { runPullRequestScan, runRepositoryScan } from "./scanService";
 import { inspectPullRequestFiles } from "./prFileInspector";
+import { createComplianceStorage } from "../storage/storageFactory";
 
 type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
 
@@ -23,6 +23,7 @@ export async function handlePullRequest(
     defaultBranch: repo.default_branch
   };
 
+  const storage = createComplianceStorage(context, repoInfo);
   const config = await loadComplianceConfig(context, repoInfo);
   const shouldRunRepositoryScan = pr.title.includes("[scan-repo]");
 
@@ -58,7 +59,7 @@ export async function handlePullRequest(
 - **Repository violations found:** ${repositoryScanResult.violations.length}
 `;
 
-      await saveScanState(context, repoInfo, {
+      await storage.saveScanState({
         lastUpdatedAt: new Date().toISOString(),
         lastScanType: "repo",
         lastPrNumber: pr.number,
@@ -69,7 +70,7 @@ export async function handlePullRequest(
         lastTriggeredBy: pr.user.login
       });
 
-      await appendScanHistory(context, repoInfo, {
+      await storage.appendScanHistory({
         timestamp: new Date().toISOString(),
         scanType: "repo",
         prNumber: pr.number,
@@ -97,7 +98,7 @@ export async function handlePullRequest(
 `;
 
     try {
-      await saveScanState(context, repoInfo, {
+      await storage.saveScanState({
         lastUpdatedAt: new Date().toISOString(),
         lastScanType: "pr",
         lastPrNumber: pr.number,
@@ -108,7 +109,7 @@ export async function handlePullRequest(
         lastTriggeredBy: pr.user.login
       });
 
-      await appendScanHistory(context, repoInfo, {
+      await storage.appendScanHistory({
         timestamp: new Date().toISOString(),
         scanType: "pr",
         prNumber: pr.number,
@@ -125,9 +126,9 @@ export async function handlePullRequest(
   }
 
   const body = `
-🛡️ **Compliance Shield – Phase 24**
+🛡️ **Compliance Shield – Phase 26**
 
-I inspected this pull request using a shared scan engine, policy packs, severity-aware rules, inline annotations, suppression controls, comment upsert behavior, configurable scan mode, deduplicated reporting, optional repository scanning, persisted scan state, and scan history tracking.
+I inspected this pull request using a shared scan engine, storage abstraction, policy packs, severity-aware rules, inline annotations, suppression controls, configurable scan mode, deduplicated reporting, optional repository scanning, persisted scan state, and scan history tracking.
 
 - **PR:** #${pr.number}
 - **Title:** ${pr.title}

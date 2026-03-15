@@ -1,18 +1,13 @@
 import { Context } from "probot";
 import { parseComplianceShieldCommand } from "../utils/commandParser";
 import { loadComplianceConfig } from "../github/configLoader";
+import { formatViolationsForComment } from "../utils/violationFormatter";
 import { RepositoryContextInfo } from "../types/githubContext";
 import { upsertBotComment } from "../utils/commentUpsert";
-import { hasCommandPermission } from "../utils/permissionChecker";
-import {
-  appendScanHistory,
-  loadScanHistory,
-  loadScanState,
-  saveScanState
-} from "./scanStateStore";
-import { runRepositoryScan } from "./scanService";
-import { formatViolationsForComment } from "../utils/violationFormatter";
 import { handlePullRequest } from "./pullRequestHandler";
+import { hasCommandPermission } from "../utils/permissionChecker";
+import { runRepositoryScan } from "./scanService";
+import { createComplianceStorage } from "../storage/storageFactory";
 
 type IssueCommentEventName = "issue_comment.created";
 
@@ -59,13 +54,8 @@ export async function handleCommentCommand(
     defaultBranch: repo.default_branch
   };
 
+  const storage = createComplianceStorage(context, repoInfo);
   const config = await loadComplianceConfig(context, repoInfo);
-
-  /*
-  ======================
-  HELP COMMAND
-  ======================
-  */
 
   if (parsedCommand.command === "help") {
     const allowed = await hasCommandPermission(
@@ -106,12 +96,6 @@ Available commands:
     return;
   }
 
-  /*
-  ======================
-  STATUS COMMAND
-  ======================
-  */
-
   if (parsedCommand.command === "status") {
     const allowed = await hasCommandPermission(
       context,
@@ -124,46 +108,53 @@ Available commands:
       return;
     }
 
-    const state = await loadScanState(context, repoInfo);
-    const history = await loadScanHistory(context, repoInfo);
+    try {
+      const lastState = await storage.loadScanState();
+      const history = await storage.loadScanHistory();
 
-    const recentHistory = history.entries
-      .slice(0, 5)
-      .map(
-        (entry, index) =>
-          `${index + 1}. **${entry.scanType.toUpperCase()}** • ${entry.timestamp} • Violations: ${entry.violationsFound} • Files: ${entry.scannedFiles}`
-      )
-      .join("\n");
+      const recentHistory = history.entries
+        .slice(0, 5)
+        .map(
+          (entry, index) =>
+            `${index + 1}. **${entry.scanType.toUpperCase()}** • ${entry.timestamp} • Violations: ${entry.violationsFound} • Files: ${entry.scannedFiles}`
+        )
+        .join("\n");
 
-    await upsertBotComment(
-      context,
-      repoInfo.owner,
-      repoInfo.repo,
-      issue.number,
-      `
+      await upsertBotComment(
+        context,
+        repoInfo.owner,
+        repoInfo.repo,
+        issue.number,
+        `
 🛡️ **Compliance Shield Status**
 
 **Repository:** ${repoInfo.owner}/${repoInfo.repo}
 
 ### Last scan state
-- Last updated: ${state?.lastUpdatedAt ?? "None"}
-- Last scan type: ${state?.lastScanType ?? "None"}
-- Violations: ${state?.lastViolationsFound ?? 0}
-- Files scanned: ${state?.lastScannedFiles ?? 0}
+- Last updated: ${lastState?.lastUpdatedAt ?? "None"}
+- Last scan type: ${lastState?.lastScanType ?? "None"}
+- Violations: ${lastState?.lastViolationsFound ?? 0}
+- Files scanned: ${lastState?.lastScannedFiles ?? 0}
 
 ### Recent scans
 ${recentHistory || "No scan history yet"}
 `
-    );
+      );
+    } catch (error) {
+      context.log.error("Status command failed");
+      context.log.error(error);
+
+      await upsertBotComment(
+        context,
+        repoInfo.owner,
+        repoInfo.repo,
+        issue.number,
+        "🛡️ Failed to load Compliance Shield status."
+      );
+    }
 
     return;
   }
-
-  /*
-  ======================
-  HISTORY COMMAND
-  ======================
-  */
 
   if (parsedCommand.command === "history") {
     const allowed = await hasCommandPermission(
@@ -177,36 +168,43 @@ ${recentHistory || "No scan history yet"}
       return;
     }
 
-    const history = await loadScanHistory(context, repoInfo);
+    try {
+      const history = await storage.loadScanHistory();
 
-    const historyText = history.entries
-      .slice(0, 20)
-      .map(
-        (entry, index) =>
-          `${index + 1}. **${entry.scanType.toUpperCase()}** • ${entry.timestamp} • Violations: ${entry.violationsFound} • Files: ${entry.scannedFiles}`
-      )
-      .join("\n");
+      const historyText = history.entries
+        .slice(0, 20)
+        .map(
+          (entry, index) =>
+            `${index + 1}. **${entry.scanType.toUpperCase()}** • ${entry.timestamp} • Violations: ${entry.violationsFound} • Files: ${entry.scannedFiles}`
+        )
+        .join("\n");
 
-    await upsertBotComment(
-      context,
-      repoInfo.owner,
-      repoInfo.repo,
-      issue.number,
-      `
+      await upsertBotComment(
+        context,
+        repoInfo.owner,
+        repoInfo.repo,
+        issue.number,
+        `
 🛡️ **Compliance Shield Scan History**
 
 ${historyText || "No scan history yet"}
 `
-    );
+      );
+    } catch (error) {
+      context.log.error("History command failed");
+      context.log.error(error);
+
+      await upsertBotComment(
+        context,
+        repoInfo.owner,
+        repoInfo.repo,
+        issue.number,
+        "🛡️ Failed to load Compliance Shield history."
+      );
+    }
 
     return;
   }
-
-  /*
-  ======================
-  SCAN REPO COMMAND
-  ======================
-  */
 
   if (parsedCommand.command === "scan-repo") {
     const allowed = await hasCommandPermission(
@@ -228,34 +226,37 @@ ${historyText || "No scan history yet"}
       "🛡️ Compliance Shield is scanning the repository..."
     );
 
-    const result = await runRepositoryScan(context, repoInfo, config);
+    try {
+      const result = await runRepositoryScan(context, repoInfo, config);
 
-    await saveScanState(context, repoInfo, {
-      lastUpdatedAt: new Date().toISOString(),
-      lastScanType: "repo",
-      lastScanMode: config.scanMode,
-      lastViolationsFound: result.violations.length,
-      lastScannedFiles: result.scannedFiles,
-      lastSkippedFiles: result.skippedFiles,
-      lastTriggeredBy: actor
-    });
+      await storage.saveScanState({
+        lastUpdatedAt: new Date().toISOString(),
+        lastScanType: "repo",
+        lastPrNumber: issue.number,
+        lastScanMode: config.scanMode,
+        lastViolationsFound: result.violations.length,
+        lastScannedFiles: result.scannedFiles,
+        lastSkippedFiles: result.skippedFiles,
+        lastTriggeredBy: actor
+      });
 
-    await appendScanHistory(context, repoInfo, {
-      timestamp: new Date().toISOString(),
-      scanType: "repo",
-      scanMode: config.scanMode,
-      violationsFound: result.violations.length,
-      scannedFiles: result.scannedFiles,
-      skippedFiles: result.skippedFiles,
-      triggeredBy: actor
-    });
+      await storage.appendScanHistory({
+        timestamp: new Date().toISOString(),
+        scanType: "repo",
+        prNumber: issue.number,
+        scanMode: config.scanMode,
+        violationsFound: result.violations.length,
+        scannedFiles: result.scannedFiles,
+        skippedFiles: result.skippedFiles,
+        triggeredBy: actor
+      });
 
-    await upsertBotComment(
-      context,
-      repoInfo.owner,
-      repoInfo.repo,
-      issue.number,
-      `
+      await upsertBotComment(
+        context,
+        repoInfo.owner,
+        repoInfo.repo,
+        issue.number,
+        `
 🛡️ **Repository Scan Result**
 
 Files scanned: ${result.scannedFiles}  
@@ -264,16 +265,22 @@ Violations found: ${result.violations.length}
 
 ${formatViolationsForComment(result.violations)}
 `
-    );
+      );
+    } catch (error) {
+      context.log.error("Repository scan command failed");
+      context.log.error(error);
+
+      await upsertBotComment(
+        context,
+        repoInfo.owner,
+        repoInfo.repo,
+        issue.number,
+        "🛡️ Repository scan failed. Please check the app logs."
+      );
+    }
 
     return;
   }
-
-  /*
-  ======================
-  RESCAN COMMAND
-  ======================
-  */
 
   if (parsedCommand.command === "rescan") {
     const allowed = await hasCommandPermission(
@@ -295,41 +302,48 @@ ${formatViolationsForComment(result.violations)}
       "🛡️ Compliance Shield is rescanning this pull request..."
     );
 
-    const prResponse = await context.octokit.pulls.get({
-      owner: repoInfo.owner,
-      repo: repoInfo.repo,
-      pull_number: issue.number
-    });
+    try {
+      const prResponse = await context.octokit.pulls.get({
+        owner: repoInfo.owner,
+        repo: repoInfo.repo,
+        pull_number: issue.number
+      });
 
-    const syntheticContext = {
-      ...context,
-      payload: {
-        ...context.payload,
-        action: "synchronize",
-        number: issue.number,
-        pull_request: prResponse.data,
-        repository: context.payload.repository
-      }
-    } as unknown as Context<"pull_request.opened">;
+      const syntheticContext = {
+        ...context,
+        payload: {
+          ...context.payload,
+          action: "synchronize",
+          number: issue.number,
+          pull_request: prResponse.data,
+          repository: context.payload.repository
+        }
+      } as unknown as Context<"pull_request.opened">;
 
-    await handlePullRequest(syntheticContext);
+      await handlePullRequest(syntheticContext);
 
-    await upsertBotComment(
-      context,
-      repoInfo.owner,
-      repoInfo.repo,
-      issue.number,
-      "🛡️ Pull request rescan completed."
-    );
+      await upsertBotComment(
+        context,
+        repoInfo.owner,
+        repoInfo.repo,
+        issue.number,
+        "🛡️ Pull request rescan completed."
+      );
+    } catch (error) {
+      context.log.error("Rescan command failed");
+      context.log.error(error);
+
+      await upsertBotComment(
+        context,
+        repoInfo.owner,
+        repoInfo.repo,
+        issue.number,
+        "🛡️ Pull request rescan failed. Please check the app logs."
+      );
+    }
 
     return;
   }
-
-  /*
-  ======================
-  UNKNOWN COMMAND
-  ======================
-  */
 
   await upsertBotComment(
     context,
