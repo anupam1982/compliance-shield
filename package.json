@@ -1,8 +1,14 @@
+
 {
     "name": "compliance-shield",
     "version": "0.1.0",
-    "private": true,
-    "description": "GitHub Compliance Shield App",
+    "description": "GitHub App for repository compliance and secret detection",
+    "author": "Anupam Mukherjee",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/anupam1982/compliance-shield"
+    },
     "main": "lib/app.js",
     "scripts": {
         "build": "tsc",
