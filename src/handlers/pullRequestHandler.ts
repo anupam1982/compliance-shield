@@ -3,11 +3,11 @@ import { hasBlockingViolations } from "../rules/ruleEngine";
 import { reportCheckRun } from "./checkRunReporter";
 import { loadComplianceConfig } from "../github/configLoader";
 import { upsertPullRequestComment } from "./commentReporter";
-import { formatViolationsForComment } from "../utils/violationFormatter";
 import { RepositoryContextInfo } from "../types/githubContext";
 import { runPullRequestScan, runRepositoryScan } from "./scanService";
 import { inspectPullRequestFiles } from "./prFileInspector";
 import { createComplianceStorage } from "../storage/storageFactory";
+import { formatViolationWithSuggestion } from "../utils/autofixSuggestions";
 
 type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
 
@@ -39,6 +39,11 @@ export async function handlePullRequest(
         `- \`${file.filename}\` (${file.status}, +${file.additions}/-${file.deletions})`
     )
     .join("\n");
+
+  const formattedViolations =
+    violations.length === 0
+      ? "✅ No compliance violations detected."
+      : violations.map((violation) => formatViolationWithSuggestion(violation)).join("\n");
 
   let repositoryScanSummary = "";
 
@@ -126,9 +131,9 @@ export async function handlePullRequest(
   }
 
   const body = `
-🛡️ **Compliance Shield – Phase 26**
+🛡️ **Compliance Shield – Phase 27**
 
-I inspected this pull request using a shared scan engine, storage abstraction, policy packs, severity-aware rules, inline annotations, suppression controls, configurable scan mode, deduplicated reporting, optional repository scanning, persisted scan state, and scan history tracking.
+I inspected this pull request using a shared scan engine, storage abstraction, policy packs, severity-aware rules, inline annotations, suppression controls, configurable scan mode, deduplicated reporting, optional repository scanning, persisted scan state, scan history tracking, and autofix suggestions.
 
 - **PR:** #${pr.number}
 - **Title:** ${pr.title}
@@ -157,7 +162,7 @@ ${repositoryScanSummary}
 ${fileList || "- No files found"}
 
 ### Compliance report
-${formatViolationsForComment(violations)}
+${formattedViolations}
 `;
 
   try {

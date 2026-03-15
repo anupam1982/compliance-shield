@@ -1,13 +1,13 @@
 import { Context } from "probot";
 import { parseComplianceShieldCommand } from "../utils/commandParser";
 import { loadComplianceConfig } from "../github/configLoader";
-import { formatViolationsForComment } from "../utils/violationFormatter";
 import { RepositoryContextInfo } from "../types/githubContext";
 import { upsertBotComment } from "../utils/commentUpsert";
 import { handlePullRequest } from "./pullRequestHandler";
 import { hasCommandPermission } from "../utils/permissionChecker";
 import { runRepositoryScan } from "./scanService";
 import { createComplianceStorage } from "../storage/storageFactory";
+import { formatViolationWithSuggestion } from "../utils/autofixSuggestions";
 
 type IssueCommentEventName = "issue_comment.created";
 
@@ -251,6 +251,11 @@ ${historyText || "No scan history yet"}
         triggeredBy: actor
       });
 
+      const formattedViolations =
+        result.violations.length === 0
+          ? "✅ No compliance violations detected."
+          : result.violations.map((violation) => formatViolationWithSuggestion(violation)).join("\n");
+
       await upsertBotComment(
         context,
         repoInfo.owner,
@@ -263,7 +268,7 @@ Files scanned: ${result.scannedFiles}
 Skipped files: ${result.skippedFiles}  
 Violations found: ${result.violations.length}
 
-${formatViolationsForComment(result.violations)}
+${formattedViolations}
 `
       );
     } catch (error) {
