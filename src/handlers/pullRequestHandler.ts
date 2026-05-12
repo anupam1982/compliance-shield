@@ -8,6 +8,7 @@ import { runPullRequestScan, runRepositoryScan } from "./scanService";
 import { inspectPullRequestFiles } from "./prFileInspector";
 import { createComplianceStorage } from "../storage/storageFactory";
 import { formatViolationWithSuggestion } from "../utils/autofixSuggestions";
+import { logger } from "../utils/logger";
 
 type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
 
@@ -22,6 +23,15 @@ export async function handlePullRequest(
     repo: repo.name,
     defaultBranch: repo.default_branch
   };
+  logger.info(
+    {
+      event: "scan.pr.started",
+      repo: `${repoInfo.owner}/${repoInfo.repo}`,
+      pr: pr.number,
+      author: pr.user.login
+    },
+    "PR scan started"
+  );
 
   const storage = createComplianceStorage(context, repoInfo);
   const config = await loadComplianceConfig(context, repoInfo);
@@ -174,6 +184,17 @@ ${formattedViolations}
 
   try {
     await reportCheckRun(context, violations, config.minimumSeverityToFail);
+    logger.info(
+      {
+        event: "scan.pr.completed",
+        repo: `${repoInfo.owner}/${repoInfo.repo}`,
+        pr: pr.number,
+        violations: violations.length,
+        blocking: isBlocking,
+        scanMode: config.scanMode
+      },
+      "PR scan completed"
+    );
   } catch (error) {
     context.log.error("Failed to create check run");
     context.log.error(error);
