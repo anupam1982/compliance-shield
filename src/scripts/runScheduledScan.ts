@@ -3,6 +3,7 @@ import { loadComplianceConfig } from "../github/configLoader";
 import { runRepositoryScan } from "../handlers/scanService";
 import { saveScanState } from "../handlers/scanStateStore";
 import { RepositoryContextInfo } from "../types/githubContext";
+import { recordScanMetric } from "../services/metricsService";
 
 function getRequiredEnv(name: string): string {
   const value = process.env[name];
@@ -46,6 +47,7 @@ async function main(): Promise<void> {
   } as unknown as Parameters<typeof loadComplianceConfig>[0];
 
   const config = await loadComplianceConfig(context, repoInfo);
+  const scanStartedAt = Date.now();
   const result = await runRepositoryScan(context, repoInfo, config);
 
   if (result.scanType !== "repo") {
@@ -60,6 +62,17 @@ async function main(): Promise<void> {
     lastScannedFiles: result.scannedFiles,
     lastSkippedFiles: result.skippedFiles,
     lastTriggeredBy: "github-actions"
+  });
+  await recordScanMetric({
+    owner: repoInfo.owner,
+    repo: repoInfo.repo,
+    scanType: "scheduled",
+    scanMode: config.scanMode,
+    violationsFound: result.violations.length,
+    scannedFiles: result.scannedFiles,
+    skippedFiles: result.skippedFiles,
+    durationMs: Date.now() - scanStartedAt,
+    triggeredBy: "github-actions"
   });
 
   console.log("Compliance Shield scheduled scan completed");

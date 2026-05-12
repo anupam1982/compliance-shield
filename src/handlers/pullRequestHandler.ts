@@ -9,6 +9,7 @@ import { inspectPullRequestFiles } from "./prFileInspector";
 import { createComplianceStorage } from "../storage/storageFactory";
 import { formatViolationWithSuggestion } from "../utils/autofixSuggestions";
 import { logger } from "../utils/logger";
+import { recordScanMetric } from "../services/metricsService";
 
 type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
 
@@ -23,6 +24,7 @@ export async function handlePullRequest(
     repo: repo.name,
     defaultBranch: repo.default_branch
   };
+  const scanStartedAt = Date.now();
   logger.info(
     {
       event: "scan.pr.started",
@@ -73,6 +75,19 @@ export async function handlePullRequest(
 - **Limited by max files:** ${repositoryScanResult.limitedByMaxFiles ? "Yes" : "No"}
 - **Repository violations found:** ${repositoryScanResult.violations.length}
 `;
+
+    await recordScanMetric({
+      owner: repoInfo.owner,
+      repo: repoInfo.repo,
+      scanType: "pr",
+      prNumber: pr.number,
+      scanMode: config.scanMode,
+      violationsFound: violations.length,
+      scannedFiles: prScanResult.scannedFiles,
+      skippedFiles: prScanResult.skippedFiles,
+      durationMs: Date.now() - scanStartedAt,
+      triggeredBy: pr.user.login
+    });
 
       await storage.saveScanState({
         lastUpdatedAt: new Date().toISOString(),
