@@ -8,6 +8,7 @@ import { hasCommandPermission } from "../utils/permissionChecker";
 import { runRepositoryScan } from "./scanService";
 import { createComplianceStorage } from "../storage/storageFactory";
 import { formatViolationWithSuggestion } from "../utils/autofixSuggestions";
+import { recordScanMetric } from "../services/metricsService";
 
 type IssueCommentEventName = "issue_comment.created";
 
@@ -227,6 +228,7 @@ ${historyText || "No scan history yet"}
     );
 
     try {
+      const scanStartedAt = Date.now();
       const result = await runRepositoryScan(context, repoInfo, config);
 
       await storage.saveScanState({
@@ -248,6 +250,19 @@ ${historyText || "No scan history yet"}
         violationsFound: result.violations.length,
         scannedFiles: result.scannedFiles,
         skippedFiles: result.skippedFiles,
+        triggeredBy: actor
+      });
+
+      await recordScanMetric({
+        owner: repoInfo.owner,
+        repo: repoInfo.repo,
+        scanType: "repo",
+        prNumber: issue.number,
+        scanMode: config.scanMode,
+        violationsFound: result.violations.length,
+        scannedFiles: result.scannedFiles,
+        skippedFiles: result.skippedFiles,
+        durationMs: Date.now() - scanStartedAt,
         triggeredBy: actor
       });
 
