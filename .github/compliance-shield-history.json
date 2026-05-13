@@ -1,0 +1,14 @@
+{
+  "entries": [
+    {
+      "timestamp": "2026-05-13T04:54:33.081Z",
+      "scanType": "repo",
+      "prNumber": 16,
+      "scanMode": "full-file",
+      "violationsFound": 20,
+      "scannedFiles": 57,
+      "skippedFiles": 1,
+      "triggeredBy": "anupam1982"
+    }
+  ]
+}
