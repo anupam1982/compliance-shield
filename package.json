@@ -15,12 +15,15 @@
         "scheduled-scan": "npm run build && node ./lib/scripts/runScheduledScan.js",
         "test": "jest",
         "test:watch": "jest --watch",
-        "test:coverage": "jest --coverage"
+        "test:coverage": "jest --coverage",
+        "test:db": "ts-node src/scripts/testDbConnection.ts",
+        "health:server": "ts-node src/server.ts"
     },
     "dependencies": {
         "@sentry/node": "^10.52.0",
         "@sentry/profiling-node": "^10.52.0",
         "dotenv": "^16.4.0",
+        "express": "^5.2.1",
         "js-yaml": "^4.1.1",
         "pg": "^8.20.0",
         "pino": "^10.3.1",
@@ -29,12 +32,14 @@
         "zod": "^4.3.6"
     },
     "devDependencies": {
+        "@types/express": "^5.0.6",
         "@types/jest": "^30.0.0",
         "@types/js-yaml": "^4.0.9",
         "@types/node": "^20.0.0",
         "@types/pg": "^8.20.0",
         "jest": "^30.3.0",
         "ts-jest": "^29.4.6",
+        "ts-node": "^10.9.2",
         "typescript": "^5.6.0"
     }
 }

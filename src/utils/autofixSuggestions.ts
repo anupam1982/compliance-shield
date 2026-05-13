@@ -89,8 +89,15 @@ export function getAutofixSuggestion(
 export function formatViolationWithSuggestion(
   violation: ComplianceViolation
 ): string {
-  const location = violation.line ? ` (line ${violation.line})` : "";
-  const base = `- **${violation.severity.toUpperCase()}** **${violation.type.toUpperCase()}**${location} — ${violation.message}`;
+  const fileName =
+    "fileName" in violation && violation.fileName
+      ? `\`${violation.fileName}\``
+      : "`Unknown file`";
+
+  const location = violation.line ? `:${violation.line}` : "";
+
+  const base = `- **${violation.severity.toUpperCase()} ${violation.type.toUpperCase()}** — ${fileName}${location}
+  - **Issue:** ${violation.message}`;
 
   const suggestion = getAutofixSuggestion(violation);
 

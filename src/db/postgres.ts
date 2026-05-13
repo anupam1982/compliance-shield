@@ -4,6 +4,11 @@ import { logger } from "../utils/logger";
 let pool: Pool | null = null;
 
 export function getPostgresPool(): Pool | null {
+  console.log("🔥 getPostgresPool invoked");
+console.log("METRICS_ENABLED =", process.env.METRICS_ENABLED);
+console.log("DATABASE_URL exists =", !!process.env.DATABASE_URL);
+  console.log("METRICS_ENABLED =", process.env.METRICS_ENABLED);
+  console.log("DATABASE_URL exists =", !!process.env.DATABASE_URL);
   if (process.env.METRICS_ENABLED !== "true") {
     return null;
   }
