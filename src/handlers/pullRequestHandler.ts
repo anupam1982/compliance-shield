@@ -10,6 +10,8 @@ import { createComplianceStorage } from "../storage/storageFactory";
 import { formatViolationWithSuggestion } from "../utils/autofixSuggestions";
 import { logger } from "../utils/logger";
 import { recordScanMetric } from "../services/metricsService";
+import { extractRateLimit } from "../utils/extractRateLimit";
+import { monitorRateLimit } from "../utils/rateLimitMonitor";
 
 type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
 

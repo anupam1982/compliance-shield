@@ -15,6 +15,8 @@ export interface ScanMetricInput {
 }
 
 export async function recordScanMetric(input: ScanMetricInput): Promise<void> {
+  console.log("🚀 recordScanMetric CALLED");
+console.log(input);
   const pool = getPostgresPool();
 
   if (!pool) {
