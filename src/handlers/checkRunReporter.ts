@@ -60,17 +60,39 @@ export async function reportCheckRun(
       title: `${violation.severity.toUpperCase()} - ${violation.indicator}`
     }));
 
-  await context.octokit.checks.create({
-    owner,
-    repo: repoName,
-    name: "Compliance Shield",
-    head_sha: headSha,
-    status: "completed",
-    conclusion,
-    output: {
-      title,
-      summary,
-      annotations
-    }
-  });
+  // await context.octokit.checks.create({
+  //   owner,
+  //   repo: repoName,
+  //   name: "Compliance Shield",
+  //   head_sha: headSha,
+  //   status: "completed",
+  //   conclusion,
+  //   output: {
+  //     title,
+  //     summary,
+  //     annotations
+  //   }
+  // });
+
+  try {
+    const response = await context.octokit.checks.create({
+      owner,
+      repo: repoName,
+      name: "Compliance Shield",
+      head_sha: headSha,
+      status: "completed",
+      conclusion,
+      output: {
+        title,
+        summary,
+        annotations
+      }
+    });
+  
+    console.log("✅ Check run created successfully");
+    console.log(response.data.id);
+  } catch (error) {
+    console.error("❌ Failed to create check run");
+    console.error(error);
+  }
 }

@@ -86,28 +86,6 @@ export function getAutofixSuggestion(
   return null;
 }
 
-// export function formatViolationWithSuggestion(
-//   violation: ComplianceViolation
-// ): string {
-//   const location = violation.line ? ` (line ${violation.line})` : "";
-//   //const base = `- **${violation.severity.toUpperCase()}** **${violation.type.toUpperCase()}**${location} — ${violation.message}`;
-//   const fileName =
-//   "fileName" in violation && violation.fileName
-//     ? ` in \`${violation.fileName}\``
-//     : "";
-
-//   const base = `- **${violation.severity.toUpperCase()}** **${violation.type.toUpperCase()}**${fileName}${location} — ${violation.message}`;
-//   const suggestion = getAutofixSuggestion(violation);
-
-//   if (!suggestion) {
-//     return base;
-//   }
-
-//   return `${base}
-//   - **Suggested fix:** ${suggestion.title}
-//   - **Guidance:** ${suggestion.suggestion}`;
-// }
-
 export function formatViolationWithSuggestion(
   violation: ComplianceViolation
 ): string {
