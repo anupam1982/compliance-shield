@@ -1,9 +1,10 @@
 {
-  "lastUpdatedAt": "2026-05-12T03:10:50.463Z",
-  "lastScanType": "scheduled",
+  "lastUpdatedAt": "2026-05-13T07:15:29.845Z",
+  "lastScanType": "repo",
+  "lastPrNumber": 16,
   "lastScanMode": "full-file",
   "lastViolationsFound": 20,
-  "lastScannedFiles": 54,
+  "lastScannedFiles": 58,
   "lastSkippedFiles": 1,
-  "lastTriggeredBy": "github-actions"
+  "lastTriggeredBy": "anupam1982"
 }
