@@ -12,6 +12,10 @@ import { logger } from "../utils/logger";
 import { recordScanMetric } from "../services/metricsService";
 import { extractRateLimit } from "../utils/extractRateLimit";
 import { monitorRateLimit } from "../utils/rateLimitMonitor";
+import {
+  calculateRepositoryRiskScore,
+  calculateSeverityCounts
+} from "../services/severityAnalyticsService";
 
 type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
 
@@ -77,7 +81,8 @@ export async function handlePullRequest(
 - **Limited by max files:** ${repositoryScanResult.limitedByMaxFiles ? "Yes" : "No"}
 - **Repository violations found:** ${repositoryScanResult.violations.length}
 `;
-
+const severityCounts = calculateSeverityCounts(repositoryScanResult.violations);
+const riskScore = calculateRepositoryRiskScore(severityCounts);
     await recordScanMetric({
       owner: repoInfo.owner,
       repo: repoInfo.repo,
@@ -88,7 +93,12 @@ export async function handlePullRequest(
       scannedFiles: prScanResult.scannedFiles,
       skippedFiles: prScanResult.skippedFiles,
       durationMs: Date.now() - scanStartedAt,
-      triggeredBy: pr.user.login
+      triggeredBy: pr.user.login,
+      criticalCount: severityCounts.critical,
+      highCount: severityCounts.high,
+      mediumCount: severityCounts.medium,
+      lowCount: severityCounts.low,
+      riskScore
     });
 
       await storage.saveScanState({

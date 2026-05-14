@@ -109,3 +109,49 @@ export async function getDashboardSummary() {
     avgDurationMs: row.avg_duration_ms
   };
 }
+
+export async function getSeverityAnalytics() {
+  const pool = getPostgresPool();
+
+  if (!pool) {
+    return {
+      critical: 0,
+      high: 0,
+      medium: 0,
+      low: 0
+    };
+  }
+
+  const result = await pool.query(`
+    select
+      coalesce(sum(critical_count), 0)::int as critical,
+      coalesce(sum(high_count), 0)::int as high,
+      coalesce(sum(medium_count), 0)::int as medium,
+      coalesce(sum(low_count), 0)::int as low
+    from scan_metrics
+  `);
+
+  return result.rows[0];
+}
+
+export async function getRiskAnalytics() {
+  const pool = getPostgresPool();
+
+  if (!pool) {
+    return [];
+  }
+
+  const result = await pool.query(`
+    select
+      owner,
+      repo,
+      max(risk_score)::int as max_risk_score,
+      round(avg(risk_score))::int as avg_risk_score,
+      max(created_at) as last_scan_at
+    from scan_metrics
+    group by owner, repo
+    order by max_risk_score desc
+  `);
+
+  return result.rows;
+}

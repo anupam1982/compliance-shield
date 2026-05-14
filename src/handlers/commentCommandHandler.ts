@@ -9,6 +9,7 @@ import { runRepositoryScan } from "./scanService";
 import { createComplianceStorage } from "../storage/storageFactory";
 import { formatViolationWithSuggestion } from "../utils/autofixSuggestions";
 import { recordScanMetric } from "../services/metricsService";
+import { calculateRepositoryRiskScore, calculateSeverityCounts } from "../services/severityAnalyticsService";
 
 type IssueCommentEventName = "issue_comment.created";
 
@@ -230,6 +231,8 @@ ${historyText || "No scan history yet"}
     try {
       const scanStartedAt = Date.now();
       const result = await runRepositoryScan(context, repoInfo, config);
+      const severityCounts = calculateSeverityCounts(result.violations);
+      const riskScore = calculateRepositoryRiskScore(severityCounts);
 
       await storage.saveScanState({
         lastUpdatedAt: new Date().toISOString(),
@@ -263,7 +266,12 @@ ${historyText || "No scan history yet"}
         scannedFiles: result.scannedFiles,
         skippedFiles: result.skippedFiles,
         durationMs: Date.now() - scanStartedAt,
-        triggeredBy: actor
+        triggeredBy: actor,
+        criticalCount: severityCounts.critical,
+        highCount: severityCounts.high,
+        mediumCount: severityCounts.medium,
+        lowCount: severityCounts.low,
+        riskScore
       });
 
       const formattedViolations =
