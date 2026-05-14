@@ -8,8 +8,10 @@ import {
   getRepositorySummary,
   getScanTrends
 } from "./services/dashboardMetricsService";
+import cors from "cors";
 
 const app = express();
+app.use(cors());
 
 const port = Number(process.env.PORT || 3000);
 
