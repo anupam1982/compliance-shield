@@ -1,4 +1,6 @@
 import { ComplianceViolation } from "../types/rules";
+import { groupViolationsByFileMap } from "./groupViolations";
+import { calculateRiskScore } from "../services/riskScoreService";
 
 export interface GroupedViolations {
   fileName: string;
@@ -85,4 +87,44 @@ export function formatViolationsForCheckSummary(
       return `${index + 1}. [${violation.severity.toUpperCase()}] ${violation.fileName}${location} — ${violation.message}`;
     })
     .join("\n");
+}
+
+export function formatEnhancedSummary(
+  violations: ComplianceViolation[]
+): string {
+  if (violations.length === 0) {
+    return "✅ No compliance violations detected.";
+  }
+
+  const grouped = groupViolationsByFileMap(violations);
+
+  const risk = calculateRiskScore(violations);
+
+  let summary = `# 🛡️ Compliance Shield Report
+
+## Risk Score
+- **Score:** ${risk.score}/100
+- **Risk Level:** ${risk.level.toUpperCase()}
+
+## Violations Found
+- **Total Violations:** ${violations.length}
+- **Files Impacted:** ${Object.keys(grouped).length}
+
+`;
+
+  for (const [file, fileViolations] of Object.entries(grouped)) {
+    summary += `### 📄 ${file}
+
+`;
+
+    for (const violation of fileViolations) {
+      summary += `- **${violation.severity.toUpperCase()}**
+  - ${violation.message}
+  - Line: ${violation.line ?? "unknown"}
+
+`;
+    }
+  }
+
+  return summary;
 }

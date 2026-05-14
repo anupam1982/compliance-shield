@@ -3,7 +3,7 @@ import { ComplianceViolation, SeverityLevel } from "../types/rules";
 import { hasBlockingViolations } from "../rules/ruleEngine";
 import {
   deduplicateViolations,
-  formatViolationsForCheckSummary
+  formatEnhancedSummary
 } from "../utils/violationFormatter";
 
 type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
@@ -46,7 +46,7 @@ export async function reportCheckRun(
         ? `Blocking violations found (${minimumSeverityToFail}+ threshold)`
         : `Violations found, but below fail threshold (${minimumSeverityToFail})`;
 
-  const summary = formatViolationsForCheckSummary(dedupedViolations);
+  const summary = formatEnhancedSummary(dedupedViolations);
 
   const annotations = dedupedViolations
     .filter((violation) => violation.line && violation.line > 0)
@@ -56,23 +56,14 @@ export async function reportCheckRun(
       start_line: violation.line as number,
       end_line: violation.line as number,
       annotation_level: mapSeverityToAnnotationLevel(violation.severity),
-      message: violation.message,
-      title: `${violation.severity.toUpperCase()} - ${violation.indicator}`
-    }));
+      message: `${violation.message}
 
-  // await context.octokit.checks.create({
-  //   owner,
-  //   repo: repoName,
-  //   name: "Compliance Shield",
-  //   head_sha: headSha,
-  //   status: "completed",
-  //   conclusion,
-  //   output: {
-  //     title,
-  //     summary,
-  //     annotations
-  //   }
-  // });
+      Recommended action:
+      - Review this code
+      - Remove sensitive content
+      - Follow repository compliance policy`,
+      title: `[${violation.severity.toUpperCase()}] ${violation.type.toUpperCase()}`
+    }));
 
   try {
     const response = await context.octokit.checks.create({
