@@ -1,6 +1,7 @@
 import { ComplianceViolation } from "../types/rules";
 import { groupViolationsByFileMap } from "./groupViolations";
 import { calculateRiskScore } from "../services/riskScoreService";
+import { generateSecuritySummary } from "../agents/securitySummaryAgent";
 
 export interface GroupedViolations {
   fileName: string;
@@ -117,14 +118,6 @@ export function formatEnhancedSummary(
 
 `;
 
-//     for (const violation of fileViolations) {
-//       summary += `- **${violation.severity.toUpperCase()}**
-//   - ${violation.message}
-//   - Line: ${violation.line ?? "unknown"}
-
-// `;
-//     }
-
 for (const violation of fileViolations) {
   summary += `- **${violation.severity.toUpperCase()}**
   - **Issue:** ${violation.message}
@@ -137,4 +130,21 @@ for (const violation of fileViolations) {
 }
 
   return summary;
+}
+
+export async function formatEnhancedSummaryWithAI(
+  violations: ComplianceViolation[]
+): Promise<string> {
+  const baseSummary = formatEnhancedSummary(violations);
+
+  const aiSummary = await generateSecuritySummary(violations);
+
+  return `${baseSummary}
+
+---
+
+# 🤖 AI Security Summary
+
+${aiSummary}
+`;
 }
