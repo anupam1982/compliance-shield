@@ -3,7 +3,8 @@ import { ComplianceViolation, SeverityLevel } from "../types/rules";
 import { hasBlockingViolations } from "../rules/ruleEngine";
 import {
   deduplicateViolations,
-  formatEnhancedSummary
+  formatEnhancedSummary,
+  formatEnhancedSummaryWithAI
 } from "../utils/violationFormatter";
 
 type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
@@ -46,7 +47,8 @@ export async function reportCheckRun(
         ? `Blocking violations found (${minimumSeverityToFail}+ threshold)`
         : `Violations found, but below fail threshold (${minimumSeverityToFail})`;
 
-  const summary = formatEnhancedSummary(dedupedViolations);
+  //const summary = formatEnhancedSummary(dedupedViolations);
+  const summary = await formatEnhancedSummaryWithAI(dedupedViolations);
 
   const annotations = dedupedViolations
     .filter((violation) => violation.line && violation.line > 0)

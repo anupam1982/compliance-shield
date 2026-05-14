@@ -1,20 +1,27 @@
 import { AIRemediationRequest } from "./aiProvider";
 
-export function buildRemediationPrompt(input: AIRemediationRequest): string {
+export function buildRemediationPrompt(
+  input: AIRemediationRequest
+): string {
   return `
-You are a security remediation assistant for a GitHub compliance scanner.
+You are an expert DevSecOps and compliance reviewer.
 
-Explain the issue clearly and provide safe remediation steps.
+Analyze the provided compliance violation information.
 
-Violation:
+Provide:
+1. Security/compliance risk explanation
+2. Business impact
+3. Recommended remediation
+4. Suggested best practices
+
+Violation Details:
 - Type: ${input.violationType}
 - Severity: ${input.severity}
 - Indicator: ${input.indicator ?? "N/A"}
-- Message: ${input.message}
 
-Return a concise developer-friendly response with:
-1. Risk
-2. Why it matters
-3. Recommended fix
+Details:
+${input.message}
+
+Keep the response concise, developer-friendly, and actionable.
 `;
 }
