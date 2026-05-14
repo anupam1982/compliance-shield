@@ -1,0 +1,28 @@
+policy: strict
+scanMode: full-file
+minimumSeverityToFail: high
+
+ignorePaths:
+  - "node_modules/"
+  - "lib/"
+  - "coverage/"
+  - ".git/"
+
+ignoreIndicators: []
+
+inlineIgnoreComment: "compliance-shield-ignore"
+
+maxRepositoryFiles: 300
+maxFileSizeKB: 300
+parallelFileFetchLimit: 10
+
+commandPermissions:
+  help: everyone
+  status: everyone
+  scan-repo: write
+  rescan: write
+
+ai:
+  enabled: false
+  provider: openai
+  remediationSuggestions: true
