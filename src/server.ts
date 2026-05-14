@@ -2,6 +2,12 @@ import express from "express";
 import { getHealthStatus } from "./services/healthService";
 import { getReadinessStatus } from "./services/readinessService";
 import { logger } from "./utils/logger";
+import {
+  getDashboardSummary,
+  getRecentScans,
+  getRepositorySummary,
+  getScanTrends
+} from "./services/dashboardMetricsService";
 
 const app = express();
 
@@ -49,6 +55,40 @@ app.get("/ready", (_req, res) => {
       status: "not_ready"
     });
   }
+});
+
+app.get("/api/metrics/scans", async (req, res) => {
+  const limit = Number(req.query.limit || 20);
+  const scans = await getRecentScans(limit);
+
+  return res.json({
+    data: scans
+  });
+});
+
+app.get("/api/metrics/repos", async (_req, res) => {
+  const repos = await getRepositorySummary();
+
+  return res.json({
+    data: repos
+  });
+});
+
+app.get("/api/metrics/trends", async (req, res) => {
+  const days = Number(req.query.days || 14);
+  const trends = await getScanTrends(days);
+
+  return res.json({
+    data: trends
+  });
+});
+
+app.get("/api/metrics/summary", async (_req, res) => {
+  const summary = await getDashboardSummary();
+
+  return res.json({
+    data: summary
+  });
 });
 
 app.listen(port, () => {
