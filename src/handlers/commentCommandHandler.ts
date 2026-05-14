@@ -234,6 +234,25 @@ ${historyText || "No scan history yet"}
       const severityCounts = calculateSeverityCounts(result.violations);
       const riskScore = calculateRepositoryRiskScore(severityCounts);
 
+      await recordScanMetric({
+        owner: repoInfo.owner,
+        repo: repoInfo.repo,
+        scanType: "repo",
+        prNumber: issue.number,
+        scanMode: config.scanMode,
+        violationsFound: result.violations.length,
+        scannedFiles: result.scannedFiles,
+        skippedFiles: result.skippedFiles,
+        durationMs: Date.now() - scanStartedAt,
+        triggeredBy: actor,
+        criticalCount: severityCounts.critical,
+        highCount: severityCounts.high,
+        mediumCount: severityCounts.medium,
+        lowCount: severityCounts.low,
+        riskScore
+      });
+
+
       try {
         await storage.saveScanState({
           lastUpdatedAt: new Date().toISOString(),
@@ -261,24 +280,6 @@ ${historyText || "No scan history yet"}
       context.log.warn("Skipping GitHub file-based scan state update because branch protection blocked it.");
       context.log.warn(error);
     }
-
-      await recordScanMetric({
-        owner: repoInfo.owner,
-        repo: repoInfo.repo,
-        scanType: "repo",
-        prNumber: issue.number,
-        scanMode: config.scanMode,
-        violationsFound: result.violations.length,
-        scannedFiles: result.scannedFiles,
-        skippedFiles: result.skippedFiles,
-        durationMs: Date.now() - scanStartedAt,
-        triggeredBy: actor,
-        criticalCount: severityCounts.critical,
-        highCount: severityCounts.high,
-        mediumCount: severityCounts.medium,
-        lowCount: severityCounts.low,
-        riskScore
-      });
 
       const formattedViolations =
         result.violations.length === 0

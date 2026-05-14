@@ -106,3 +106,27 @@ th {
   border-radius: 10px;
   margin-bottom: 20px;
 }
+.severity-critical {
+  border-color: #ef4444;
+}
+
+.severity-high {
+  border-color: #f97316;
+}
+
+.severity-medium {
+  border-color: #eab308;
+}
+
+.severity-low {
+  border-color: #22c55e;
+}
+
+.risk-badge {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #1f2937;
+  border: 1px solid #22c55e;
+  font-weight: 700;
+}

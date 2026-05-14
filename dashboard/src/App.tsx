@@ -49,6 +49,21 @@ interface Trend {
   violations: number;
 }
 
+interface SeverityAnalytics {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+}
+
+interface RiskAnalytics {
+  owner: string;
+  repo: string;
+  max_risk_score: number;
+  avg_risk_score: number;
+  last_scan_at: string;
+}
+
 async function fetchData<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`);
 
@@ -66,20 +81,44 @@ function App() {
   const [repos, setRepos] = useState<RepoSummary[]>([]);
   const [trends, setTrends] = useState<Trend[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [severity, setSeverity] = useState<SeverityAnalytics | null>(null);
+  const [risk, setRisk] = useState<RiskAnalytics[]>([]);
 
   async function loadDashboard() {
     try {
-      const [summaryData, scansData, reposData, trendsData] = await Promise.all([
+      // const [summaryData, scansData, reposData, trendsData] = await Promise.all([
+      //   fetchData<Summary>("/api/metrics/summary"),
+      //   fetchData<Scan[]>("/api/metrics/scans"),
+      //   fetchData<RepoSummary[]>("/api/metrics/repos"),
+      //   fetchData<Trend[]>("/api/metrics/trends")
+      // ]);
+
+      // setSummary(summaryData);
+      // setScans(scansData);
+      // setRepos(reposData);
+      // setTrends(trendsData);
+      const [
+        summaryData,
+        scansData,
+        reposData,
+        trendsData,
+        severityData,
+        riskData
+      ] = await Promise.all([
         fetchData<Summary>("/api/metrics/summary"),
         fetchData<Scan[]>("/api/metrics/scans"),
         fetchData<RepoSummary[]>("/api/metrics/repos"),
-        fetchData<Trend[]>("/api/metrics/trends")
+        fetchData<Trend[]>("/api/metrics/trends"),
+        fetchData<SeverityAnalytics>("/api/metrics/severity"),
+        fetchData<RiskAnalytics[]>("/api/metrics/risk")
       ]);
-
+      
       setSummary(summaryData);
       setScans(scansData);
       setRepos(reposData);
       setTrends(trendsData);
+      setSeverity(severityData);
+      setRisk(riskData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard");
     }
@@ -124,6 +163,34 @@ function App() {
         </div>
       </section>
 
+      <section className="cards">
+      <div className="card severity-critical">
+        <p>Critical</p>
+        <strong>{severity?.critical ?? 0}</strong>
+      </div>
+      <div className="card severity-high">
+        <p>High</p>
+        <strong>{severity?.high ?? 0}</strong>
+      </div>
+      <div className="card severity-medium">
+        <p>Medium</p>
+        <strong>{severity?.medium ?? 0}</strong>
+      </div>
+      <div className="card severity-low">
+        <p>Low</p>
+        <strong>{severity?.low ?? 0}</strong>
+      </div>
+    </section>
+
+      <section className="cards">
+        <div className="card risk-score">
+          <p>Risk score</p>
+          <strong>
+            {risk.length > 0 ? risk[0].max_risk_score : 0}
+          </strong>
+        </div>
+      </section>
+
       <section className="panel">
         <h2>Scan Trends</h2>
         <div className="chart">
@@ -165,6 +232,32 @@ function App() {
           </tbody>
         </table>
       </section>
+
+      <section className="panel">
+      <h2>Repository Risk Ranking</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Repository</th>
+            <th>Max risk score</th>
+            <th>Avg risk score</th>
+            <th>Last scan</th>
+          </tr>
+        </thead>
+        <tbody>
+          {risk.map((item: RiskAnalytics) => (
+            <tr key={`${item.owner}/${item.repo}`}>
+              <td>{item.owner}/{item.repo}</td>
+              <td>
+                <span className="risk-badge">{item.max_risk_score}/100</span>
+              </td>
+              <td>{item.avg_risk_score}/100</td>
+              <td>{new Date(item.last_scan_at).toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
 
       <section className="panel">
         <h2>Recent Scans</h2>
