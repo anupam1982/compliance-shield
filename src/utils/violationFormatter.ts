@@ -117,14 +117,24 @@ export function formatEnhancedSummary(
 
 `;
 
-    for (const violation of fileViolations) {
-      summary += `- **${violation.severity.toUpperCase()}**
-  - ${violation.message}
-  - Line: ${violation.line ?? "unknown"}
+//     for (const violation of fileViolations) {
+//       summary += `- **${violation.severity.toUpperCase()}**
+//   - ${violation.message}
+//   - Line: ${violation.line ?? "unknown"}
+
+// `;
+//     }
+
+for (const violation of fileViolations) {
+  summary += `- **${violation.severity.toUpperCase()}**
+  - **Issue:** ${violation.message}
+  - **Line:** ${violation.line ?? "unknown"}
+  - **AI Guidance:** Review this violation carefully and follow secure remediation practices.
 
 `;
-    }
-  }
+}
+
+}
 
   return summary;
 }
