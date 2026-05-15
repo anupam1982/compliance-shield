@@ -9,6 +9,7 @@ import { runRepositoryScan } from "./scanService";
 import { createComplianceStorage } from "../storage/storageFactory";
 import { formatViolationWithSuggestion } from "../utils/autofixSuggestions";
 import { recordScanMetric } from "../services/metricsService";
+import { calculateRepositoryRiskScore, calculateSeverityCounts } from "../services/severityAnalyticsService";
 
 type IssueCommentEventName = "issue_comment.created";
 
@@ -230,28 +231,8 @@ ${historyText || "No scan history yet"}
     try {
       const scanStartedAt = Date.now();
       const result = await runRepositoryScan(context, repoInfo, config);
-
-      await storage.saveScanState({
-        lastUpdatedAt: new Date().toISOString(),
-        lastScanType: "repo",
-        lastPrNumber: issue.number,
-        lastScanMode: config.scanMode,
-        lastViolationsFound: result.violations.length,
-        lastScannedFiles: result.scannedFiles,
-        lastSkippedFiles: result.skippedFiles,
-        lastTriggeredBy: actor
-      });
-
-      await storage.appendScanHistory({
-        timestamp: new Date().toISOString(),
-        scanType: "repo",
-        prNumber: issue.number,
-        scanMode: config.scanMode,
-        violationsFound: result.violations.length,
-        scannedFiles: result.scannedFiles,
-        skippedFiles: result.skippedFiles,
-        triggeredBy: actor
-      });
+      const severityCounts = calculateSeverityCounts(result.violations);
+      const riskScore = calculateRepositoryRiskScore(severityCounts);
 
       await recordScanMetric({
         owner: repoInfo.owner,
@@ -263,8 +244,42 @@ ${historyText || "No scan history yet"}
         scannedFiles: result.scannedFiles,
         skippedFiles: result.skippedFiles,
         durationMs: Date.now() - scanStartedAt,
-        triggeredBy: actor
+        triggeredBy: actor,
+        criticalCount: severityCounts.critical,
+        highCount: severityCounts.high,
+        mediumCount: severityCounts.medium,
+        lowCount: severityCounts.low,
+        riskScore
       });
+
+
+      try {
+        await storage.saveScanState({
+          lastUpdatedAt: new Date().toISOString(),
+          lastScanType: "repo",
+          lastPrNumber: issue.number,
+          lastScanMode: config.scanMode,
+          lastViolationsFound: result.violations.length,
+          lastScannedFiles: result.scannedFiles,
+          lastSkippedFiles: result.skippedFiles,
+          lastTriggeredBy: actor
+        });
+
+        await storage.appendScanHistory({
+          timestamp: new Date().toISOString(),
+          scanType: "repo",
+          prNumber: issue.number,
+          scanMode: config.scanMode,
+          violationsFound: result.violations.length,
+          scannedFiles: result.scannedFiles,
+          skippedFiles: result.skippedFiles,
+          triggeredBy: actor
+        });
+    }
+    catch (error) {
+      context.log.warn("Skipping GitHub file-based scan state update because branch protection blocked it.");
+      context.log.warn(error);
+    }
 
       const formattedViolations =
         result.violations.length === 0

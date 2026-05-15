@@ -6,7 +6,9 @@ import {
   getDashboardSummary,
   getRecentScans,
   getRepositorySummary,
-  getScanTrends
+  getScanTrends,
+  getSeverityAnalytics,
+  getRiskAnalytics
 } from "./services/dashboardMetricsService";
 import cors from "cors";
 
@@ -90,6 +92,21 @@ app.get("/api/metrics/summary", async (_req, res) => {
 
   return res.json({
     data: summary
+  });
+});
+app.get("/api/metrics/severity", async (_req, res) => {
+  const severity = await getSeverityAnalytics();
+
+  return res.json({
+    data: severity
+  });
+});
+
+app.get("/api/metrics/risk", async (_req, res) => {
+  const risk = await getRiskAnalytics();
+
+  return res.json({
+    data: risk
   });
 });
 
