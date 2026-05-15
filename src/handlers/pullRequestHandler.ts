@@ -101,27 +101,27 @@ const riskScore = calculateRepositoryRiskScore(severityCounts);
       riskScore
     });
 
-      await storage.saveScanState({
-        lastUpdatedAt: new Date().toISOString(),
-        lastScanType: "repo",
-        lastPrNumber: pr.number,
-        lastScanMode: config.scanMode,
-        lastViolationsFound: repositoryScanResult.violations.length,
-        lastScannedFiles: repositoryScanResult.scannedFiles,
-        lastSkippedFiles: repositoryScanResult.skippedFiles,
-        lastTriggeredBy: pr.user.login
-      });
+      // await storage.saveScanState({
+      //   lastUpdatedAt: new Date().toISOString(),
+      //   lastScanType: "repo",
+      //   lastPrNumber: pr.number,
+      //   lastScanMode: config.scanMode,
+      //   lastViolationsFound: repositoryScanResult.violations.length,
+      //   lastScannedFiles: repositoryScanResult.scannedFiles,
+      //   lastSkippedFiles: repositoryScanResult.skippedFiles,
+      //   lastTriggeredBy: pr.user.login
+      // });
 
-      await storage.appendScanHistory({
-        timestamp: new Date().toISOString(),
-        scanType: "repo",
-        prNumber: pr.number,
-        scanMode: config.scanMode,
-        violationsFound: repositoryScanResult.violations.length,
-        scannedFiles: repositoryScanResult.scannedFiles,
-        skippedFiles: repositoryScanResult.skippedFiles,
-        triggeredBy: pr.user.login
-      });
+      // await storage.appendScanHistory({
+      //   timestamp: new Date().toISOString(),
+      //   scanType: "repo",
+      //   prNumber: pr.number,
+      //   scanMode: config.scanMode,
+      //   violationsFound: repositoryScanResult.violations.length,
+      //   scannedFiles: repositoryScanResult.scannedFiles,
+      //   skippedFiles: repositoryScanResult.skippedFiles,
+      //   triggeredBy: pr.user.login
+      // });
     } catch (error) {
       context.log.error("Failed to scan repository");
       context.log.error(error);
@@ -139,32 +139,32 @@ const riskScore = calculateRepositoryRiskScore(severityCounts);
 - Add \`[scan-repo]\` to the PR title to run a repository scan.
 `;
 
-    try {
-      await storage.saveScanState({
-        lastUpdatedAt: new Date().toISOString(),
-        lastScanType: "pr",
-        lastPrNumber: pr.number,
-        lastScanMode: config.scanMode,
-        lastViolationsFound: prScanResult.violations.length,
-        lastScannedFiles: prScanResult.scannedFiles,
-        lastSkippedFiles: prScanResult.skippedFiles,
-        lastTriggeredBy: pr.user.login
-      });
+  //   try {
+  //     await storage.saveScanState({
+  //       lastUpdatedAt: new Date().toISOString(),
+  //       lastScanType: "pr",
+  //       lastPrNumber: pr.number,
+  //       lastScanMode: config.scanMode,
+  //       lastViolationsFound: prScanResult.violations.length,
+  //       lastScannedFiles: prScanResult.scannedFiles,
+  //       lastSkippedFiles: prScanResult.skippedFiles,
+  //       lastTriggeredBy: pr.user.login
+  //     });
 
-      await storage.appendScanHistory({
-        timestamp: new Date().toISOString(),
-        scanType: "pr",
-        prNumber: pr.number,
-        scanMode: config.scanMode,
-        violationsFound: prScanResult.violations.length,
-        scannedFiles: prScanResult.scannedFiles,
-        skippedFiles: prScanResult.skippedFiles,
-        triggeredBy: pr.user.login
-      });
-    } catch (error) {
-      context.log.error("Failed to save PR scan state");
-      context.log.error(error);
-    }
+  //     await storage.appendScanHistory({
+  //       timestamp: new Date().toISOString(),
+  //       scanType: "pr",
+  //       prNumber: pr.number,
+  //       scanMode: config.scanMode,
+  //       violationsFound: prScanResult.violations.length,
+  //       scannedFiles: prScanResult.scannedFiles,
+  //       skippedFiles: prScanResult.skippedFiles,
+  //       triggeredBy: pr.user.login
+  //     });
+  //   } catch (error) {
+  //     context.log.error("Failed to save PR scan state");
+  //     context.log.error(error);
+  //   }
   }
 
   const body = `

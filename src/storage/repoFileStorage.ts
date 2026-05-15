@@ -77,13 +77,13 @@ export class RepoFileStorage extends BaseComplianceStorage {
     }
   }
 
-  async saveScanState(state: ScanState): Promise<void> {
-    await this.saveJsonFile(
-      STATE_FILE_PATH,
-      "Update Compliance Shield scan state",
-      state
-    );
-  }
+  // async saveScanState(state: ScanState): Promise<void> {
+  //   await this.saveJsonFile(
+  //     STATE_FILE_PATH,
+  //     "Update Compliance Shield scan state",
+  //     state
+  //   );
+  // }
 
   async loadScanHistory(): Promise<ScanHistory> {
     const existing = await this.getExistingFile(HISTORY_FILE_PATH);
