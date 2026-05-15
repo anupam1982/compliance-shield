@@ -36,25 +36,27 @@ console.log(input);
     await pool.query(
       `
       insert into scan_metrics (
-      owner,
-      repo,
-      scan_type,
-      pr_number,
-      scan_mode,
-      violations_found,
-      scanned_files,
-      skipped_files,
-      duration_ms,
-      triggered_by,
-      critical_count,
-      high_count,
-      medium_count,
-      low_count,
-      risk_score
-    )
-    values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-
-Update values:
+        owner,
+        repo,
+        scan_type,
+        pr_number,
+        scan_mode,
+        violations_found,
+        scanned_files,
+        skipped_files,
+        duration_ms,
+        triggered_by,
+        critical_count,
+        high_count,
+        medium_count,
+        low_count,
+        risk_score
+      )
+      values (
+        $1, $2, $3, $4, $5,
+        $6, $7, $8, $9, $10,
+        $11, $12, $13, $14, $15
+      )
       `,
       [
         input.owner,
