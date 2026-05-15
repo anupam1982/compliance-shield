@@ -54,15 +54,6 @@ async function main(): Promise<void> {
     throw new Error("Expected repository scan result");
   }
 
-  await saveScanState(context, repoInfo, {
-    lastUpdatedAt: new Date().toISOString(),
-    lastScanType: "scheduled",
-    lastScanMode: config.scanMode,
-    lastViolationsFound: result.violations.length,
-    lastScannedFiles: result.scannedFiles,
-    lastSkippedFiles: result.skippedFiles,
-    lastTriggeredBy: "github-actions"
-  });
   await recordScanMetric({
     owner: repoInfo.owner,
     repo: repoInfo.repo,
@@ -75,6 +66,22 @@ async function main(): Promise<void> {
     triggeredBy: "github-actions"
   });
 
+  try {
+  await saveScanState(context, repoInfo, {
+    lastUpdatedAt: new Date().toISOString(),
+    lastScanType: "scheduled",
+    lastScanMode: config.scanMode,
+    lastViolationsFound: result.violations.length,
+    lastScannedFiles: result.scannedFiles,
+    lastSkippedFiles: result.skippedFiles,
+    lastTriggeredBy: "github-actions"
+  });
+} catch (error) {
+  console.warn(
+    "Skipping GitHub file-based scan state update because branch protection blocked it."
+  );
+  console.warn(error);
+}
   console.log("Compliance Shield scheduled scan completed");
   console.log(`Scanned files: ${result.scannedFiles}`);
   console.log(`Skipped files: ${result.skippedFiles}`);
