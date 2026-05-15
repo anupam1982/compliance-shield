@@ -77,19 +77,19 @@ export async function loadScanState(
   }
 }
 
-export async function saveScanState(
-  context: Context,
-  repoInfo: RepositoryContextInfo,
-  state: ScanState
-): Promise<void> {
-  await saveJsonFile(
-    context,
-    repoInfo,
-    STATE_FILE_PATH,
-    "Update Compliance Shield scan state",
-    state
-  );
-}
+// export async function saveScanState(
+//   context: Context,
+//   repoInfo: RepositoryContextInfo,
+//   state: ScanState
+// ): Promise<void> {
+//   await saveJsonFile(
+//     context,
+//     repoInfo,
+//     STATE_FILE_PATH,
+//     "Update Compliance Shield scan state",
+//     state
+//   );
+// }
 
 export async function loadScanHistory(
   context: Context,

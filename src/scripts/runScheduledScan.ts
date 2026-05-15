@@ -1,7 +1,7 @@
 import { Probot, ProbotOctokit } from "probot";
 import { loadComplianceConfig } from "../github/configLoader";
 import { runRepositoryScan } from "../handlers/scanService";
-import { saveScanState } from "../handlers/scanStateStore";
+// import { saveScanState } from "../handlers/scanStateStore";
 import { RepositoryContextInfo } from "../types/githubContext";
 import { recordScanMetric } from "../services/metricsService";
 
@@ -66,22 +66,22 @@ async function main(): Promise<void> {
     triggeredBy: "github-actions"
   });
 
-  try {
-  await saveScanState(context, repoInfo, {
-    lastUpdatedAt: new Date().toISOString(),
-    lastScanType: "scheduled",
-    lastScanMode: config.scanMode,
-    lastViolationsFound: result.violations.length,
-    lastScannedFiles: result.scannedFiles,
-    lastSkippedFiles: result.skippedFiles,
-    lastTriggeredBy: "github-actions"
-  });
-} catch (error) {
-  console.warn(
-    "Skipping GitHub file-based scan state update because branch protection blocked it."
-  );
-  console.warn(error);
-}
+//   try {
+//   await saveScanState(context, repoInfo, {
+//     lastUpdatedAt: new Date().toISOString(),
+//     lastScanType: "scheduled",
+//     lastScanMode: config.scanMode,
+//     lastViolationsFound: result.violations.length,
+//     lastScannedFiles: result.scannedFiles,
+//     lastSkippedFiles: result.skippedFiles,
+//     lastTriggeredBy: "github-actions"
+//   });
+// } catch (error) {
+//   console.warn(
+//     "Skipping GitHub file-based scan state update because branch protection blocked it."
+//   );
+//   console.warn(error);
+// }
   console.log("Compliance Shield scheduled scan completed");
   console.log(`Scanned files: ${result.scannedFiles}`);
   console.log(`Skipped files: ${result.skippedFiles}`);
