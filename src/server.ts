@@ -12,6 +12,9 @@ import {
 } from "./services/dashboardMetricsService";
 import cors from "cors";
 import { getScanDetails } from "./services/dashboardMetricsService";
+import { generateExecutiveSummary } from "./services/aiSummaryService";
+import { ComplianceViolation } from "./types/rules";
+
 
 const app = express();
 app.use(cors());
@@ -126,6 +129,43 @@ app.get("/api/metrics/scans/:id", async (req, res) => {
     data: details
   });
 });
+
+app.get(
+  "/api/metrics/scans/:id/summary",
+  async (req, res) => {
+    const scanId = Number(req.params.id);
+
+    const details = await getScanDetails(scanId);
+
+    if (!details) {
+      return res.status(404).json({
+        error: "Scan not found"
+      });
+    }
+
+    const violations = details.violations.map((v) => ({
+      fileName: v.file_name,
+      line: v.line_number,
+      severity: v.severity as ComplianceViolation["severity"],
+      indicator: v.indicator ?? undefined,
+      message: v.message,
+      suggestedFix:
+        v.suggested_fix ?? undefined,
+      type: "content" as const
+    }));
+
+    const summary =
+      await generateExecutiveSummary(
+        violations,
+        details.scan.critical_count,
+        details.scan.high_count
+      );
+
+    return res.json({
+      data: summary
+    });
+  }
+);
 
 app.listen(port, () => {
   logger.info(
