@@ -16,6 +16,7 @@ import {
   calculateRepositoryRiskScore,
   calculateSeverityCounts
 } from "../services/severityAnalyticsService";
+import { persistViolations } from "../services/violationPersistenceService";
 
 type PullRequestEventName = "pull_request.opened" | "pull_request.synchronize";
 
@@ -83,7 +84,7 @@ export async function handlePullRequest(
 `;
 const severityCounts = calculateSeverityCounts(repositoryScanResult.violations);
 const riskScore = calculateRepositoryRiskScore(severityCounts);
-    await recordScanMetric({
+    const scanMetricId = await recordScanMetric({
       owner: repoInfo.owner,
       repo: repoInfo.repo,
       scanType: "pr",
@@ -100,6 +101,9 @@ const riskScore = calculateRepositoryRiskScore(severityCounts);
       lowCount: severityCounts.low,
       riskScore
     });
+    if (scanMetricId) {
+      await persistViolations(scanMetricId, violations);
+    }
 
       // await storage.saveScanState({
       //   lastUpdatedAt: new Date().toISOString(),

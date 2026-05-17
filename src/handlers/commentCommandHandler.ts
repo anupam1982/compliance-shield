@@ -10,6 +10,7 @@ import { createComplianceStorage } from "../storage/storageFactory";
 import { formatViolationWithSuggestion } from "../utils/autofixSuggestions";
 import { recordScanMetric } from "../services/metricsService";
 import { calculateRepositoryRiskScore, calculateSeverityCounts } from "../services/severityAnalyticsService";
+import { persistViolations } from "../services/violationPersistenceService";
 
 type IssueCommentEventName = "issue_comment.created";
 
@@ -234,7 +235,7 @@ ${historyText || "No scan history yet"}
       const severityCounts = calculateSeverityCounts(result.violations);
       const riskScore = calculateRepositoryRiskScore(severityCounts);
 
-      await recordScanMetric({
+      const scanMetricId = await recordScanMetric({
         owner: repoInfo.owner,
         repo: repoInfo.repo,
         scanType: "repo",
@@ -251,6 +252,10 @@ ${historyText || "No scan history yet"}
         lowCount: severityCounts.low,
         riskScore
       });
+
+      if (scanMetricId) {
+        await persistViolations(scanMetricId, result.violations);
+      }
 
 
     //   try {
