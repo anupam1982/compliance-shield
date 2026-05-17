@@ -64,6 +64,28 @@ interface RiskAnalytics {
   last_scan_at: string;
 }
 
+interface ScanViolation {
+  id: number;
+  file_name: string;
+  line_number: number | null;
+  severity: string;
+  indicator: string | null;
+  message: string;
+  suggested_fix: string | null;
+  created_at: string;
+}
+
+interface ScanDetails {
+  scan: Scan & {
+    critical_count: number;
+    high_count: number;
+    medium_count: number;
+    low_count: number;
+    risk_score: number;
+  };
+  violations: ScanViolation[];
+}
+
 async function fetchData<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`);
 
@@ -83,6 +105,29 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [severity, setSeverity] = useState<SeverityAnalytics | null>(null);
   const [risk, setRisk] = useState<RiskAnalytics[]>([]);
+  const [selectedScan, setSelectedScan] = useState<ScanDetails | null>(null);
+  const [scanDetailsLoading, setScanDetailsLoading] = useState(false);
+
+
+  async function openScanDetails(scanId: number) {
+    try {
+      setScanDetailsLoading(true);
+  
+      const details = await fetchData<ScanDetails>(
+        `/api/metrics/scans/${scanId}`
+      );
+  
+      setSelectedScan(details);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load scan details"
+      );
+    } finally {
+      setScanDetailsLoading(false);
+    }
+  }
 
   async function loadDashboard() {
     try {
@@ -276,7 +321,11 @@ function App() {
           </thead>
           <tbody>
             {scans.map((scan) => (
-              <tr key={scan.id}>
+              <tr
+              key={scan.id}
+              className="clickable-row"
+              onClick={() => openScanDetails(scan.id)}
+              >
                 <td>{scan.owner}/{scan.repo}</td>
                 <td>{scan.scan_type}</td>
                 <td>{scan.pr_number ?? "-"}</td>
@@ -290,6 +339,104 @@ function App() {
           </tbody>
         </table>
       </section>
+      {selectedScan && (
+  <div className="modal-backdrop" onClick={() => setSelectedScan(null)}>
+    <div className="modal" onClick={(event) => event.stopPropagation()}>
+      <div className="modal-header">
+        <div>
+          <p className="eyebrow">Scan Detail</p>
+          <h2>
+            {selectedScan.scan.owner}/{selectedScan.scan.repo}
+          </h2>
+        </div>
+
+        <button onClick={() => setSelectedScan(null)}>Close</button>
+      </div>
+
+      <section className="detail-grid">
+        <div className="detail-card">
+          <p>Scan type</p>
+          <strong>{selectedScan.scan.scan_type}</strong>
+        </div>
+
+        <div className="detail-card">
+          <p>PR</p>
+          <strong>{selectedScan.scan.pr_number ?? "-"}</strong>
+        </div>
+
+        <div className="detail-card">
+          <p>Risk score</p>
+          <strong>{selectedScan.scan.risk_score}/100</strong>
+        </div>
+
+        <div className="detail-card">
+          <p>Violations</p>
+          <strong>{selectedScan.scan.violations_found}</strong>
+        </div>
+
+        <div className="detail-card">
+          <p>Files scanned</p>
+          <strong>{selectedScan.scan.scanned_files}</strong>
+        </div>
+
+        <div className="detail-card">
+          <p>Duration</p>
+          <strong>{selectedScan.scan.duration_ms} ms</strong>
+        </div>
+      </section>
+
+      <section className="severity-strip">
+        <span>Critical: {selectedScan.scan.critical_count}</span>
+        <span>High: {selectedScan.scan.high_count}</span>
+        <span>Medium: {selectedScan.scan.medium_count}</span>
+        <span>Low: {selectedScan.scan.low_count}</span>
+      </section>
+
+      <h3>Findings</h3>
+
+      {selectedScan.violations.length === 0 ? (
+        <p className="empty-state">No violations stored for this scan.</p>
+      ) : (
+        <div className="findings-list">
+          {selectedScan.violations.map((violation) => (
+            <div key={violation.id} className="finding-card">
+              <div className="finding-header">
+                <span className={`severity-pill ${violation.severity}`}>
+                  {violation.severity.toUpperCase()}
+                </span>
+
+                <code>
+                  {violation.file_name}
+                  {violation.line_number ? `:${violation.line_number}` : ""}
+                </code>
+              </div>
+
+              <p>{violation.message}</p>
+
+              {violation.indicator && (
+                <p>
+                  <strong>Indicator:</strong>{" "}
+                  <code>{violation.indicator}</code>
+                </p>
+              )}
+
+              {violation.suggested_fix && (
+                <p>
+                  <strong>Suggested fix:</strong>{" "}
+                  {violation.suggested_fix}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+)}
+
+{scanDetailsLoading && (
+  <div className="loading-toast">Loading scan details...</div>
+)}
     </main>
   );
 }
