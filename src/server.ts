@@ -11,6 +11,7 @@ import {
   getRiskAnalytics
 } from "./services/dashboardMetricsService";
 import cors from "cors";
+import { getScanDetails } from "./services/dashboardMetricsService";
 
 const app = express();
 app.use(cors());
@@ -107,6 +108,22 @@ app.get("/api/metrics/risk", async (_req, res) => {
 
   return res.json({
     data: risk
+  });
+});
+
+app.get("/api/metrics/scans/:id", async (req, res) => {
+  const scanId = Number(req.params.id);
+
+  const details = await getScanDetails(scanId);
+
+  if (!details) {
+    return res.status(404).json({
+      error: "Scan not found"
+    });
+  }
+
+  return res.json({
+    data: details
   });
 });
 

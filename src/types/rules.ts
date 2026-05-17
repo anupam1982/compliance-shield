@@ -52,4 +52,5 @@ export interface ComplianceViolation {
   severity: SeverityLevel;
   message: string;
   line?: number;
+  suggestedFix?: string;
 }

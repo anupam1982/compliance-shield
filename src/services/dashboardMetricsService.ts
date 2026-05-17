@@ -155,3 +155,49 @@ export async function getRiskAnalytics() {
 
   return result.rows;
 }
+
+export async function getScanDetails(
+  scanId: number
+) {
+  const pool = getPostgresPool();
+
+  if (!pool) {
+    return null;
+  }
+
+  const scanResult = await pool.query(
+    `
+    select *
+    from scan_metrics
+    where id = $1
+    `,
+    [scanId]
+  );
+
+  if (scanResult.rows.length === 0) {
+    return null;
+  }
+
+  const violationsResult = await pool.query(
+    `
+    select
+      id,
+      file_name,
+      line_number,
+      severity,
+      indicator,
+      message,
+      suggested_fix,
+      created_at
+    from scan_violations
+    where scan_metric_id = $1
+    order by severity desc
+    `,
+    [scanId]
+  );
+
+  return {
+    scan: scanResult.rows[0],
+    violations: violationsResult.rows
+  };
+}

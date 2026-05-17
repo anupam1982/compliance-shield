@@ -19,9 +19,9 @@ export interface ScanMetricInput {
   riskScore?: number;
 } 
 
-export async function recordScanMetric(input: ScanMetricInput): Promise<void> {
-  console.log("🚀 recordScanMetric CALLED");
-console.log(input);
+export async function recordScanMetric(input: ScanMetricInput): 
+Promise<number | undefined> {
+  
   const pool = getPostgresPool();
 
   if (!pool) {
@@ -29,11 +29,11 @@ console.log(input);
       { event: "metrics.skipped", reason: "metrics_disabled" },
       "Metrics recording skipped"
     );
-    return;
+    return undefined;
   }
 
   try {
-    await pool.query(
+    const result = await pool.query(
       `
       insert into scan_metrics (
         owner,
@@ -57,6 +57,7 @@ console.log(input);
         $6, $7, $8, $9, $10,
         $11, $12, $13, $14, $15
       )
+      returning id
       `,
       [
         input.owner,
@@ -76,6 +77,7 @@ console.log(input);
         input.riskScore ?? 0
       ]
     );
+    return result.rows[0].id as number;
 
     logger.info(
       {

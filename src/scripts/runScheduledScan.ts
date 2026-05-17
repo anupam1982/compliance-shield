@@ -4,6 +4,7 @@ import { runRepositoryScan } from "../handlers/scanService";
 // import { saveScanState } from "../handlers/scanStateStore";
 import { RepositoryContextInfo } from "../types/githubContext";
 import { recordScanMetric } from "../services/metricsService";
+import { persistViolations } from "../services/violationPersistenceService";
 
 function getRequiredEnv(name: string): string {
   const value = process.env[name];
@@ -54,7 +55,7 @@ async function main(): Promise<void> {
     throw new Error("Expected repository scan result");
   }
 
-  await recordScanMetric({
+  const scanMetricId = await recordScanMetric({
     owner: repoInfo.owner,
     repo: repoInfo.repo,
     scanType: "scheduled",
@@ -65,6 +66,9 @@ async function main(): Promise<void> {
     durationMs: Date.now() - scanStartedAt,
     triggeredBy: "github-actions"
   });
+  if (scanMetricId) {
+    await persistViolations(scanMetricId, result.violations);
+  }
 
 //   try {
 //   await saveScanState(context, repoInfo, {
