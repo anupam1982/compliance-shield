@@ -227,3 +227,78 @@ export async function getRepositoryRiskLeaderboard() {
 
   return result.rows;
 }
+export async function getOrgPostureSummary() {
+  const pool = getPostgresPool();
+
+  if (!pool) {
+    return {
+      governanceScore: 100,
+      riskLevel: "LOW",
+      totalRepos: 0,
+      criticalRepos: 0,
+      totalViolations: 0,
+      totalCritical: 0,
+      totalHigh: 0,
+      executiveSummary: "No scan data available yet."
+    };
+  }
+
+  const result = await pool.query(`
+    select
+      count(distinct owner || '/' || repo)::int as total_repos,
+      coalesce(sum(violations_found), 0)::int as total_violations,
+      coalesce(sum(critical_count), 0)::int as total_critical,
+      coalesce(sum(high_count), 0)::int as total_high,
+      coalesce(max(risk_score), 0)::int as max_risk_score,
+      coalesce(round(avg(risk_score)), 0)::int as avg_risk_score
+    from scan_metrics
+  `);
+
+  const criticalReposResult = await pool.query(`
+    select count(*)::int as critical_repos
+    from (
+      select owner, repo, max(risk_score) as max_risk
+      from scan_metrics
+      group by owner, repo
+      having max(risk_score) >= 80
+    ) risky_repos
+  `);
+
+  const row = result.rows[0];
+  const criticalRepos = criticalReposResult.rows[0].critical_repos;
+
+  const governanceScore = Math.max(
+    0,
+    100 - Number(row.avg_risk_score)
+  );
+
+  let riskLevel = "LOW";
+
+  if (Number(row.max_risk_score) >= 80) {
+    riskLevel = "CRITICAL";
+  } else if (Number(row.max_risk_score) >= 60) {
+    riskLevel = "HIGH";
+  } else if (Number(row.max_risk_score) >= 30) {
+    riskLevel = "MEDIUM";
+  }
+
+  const executiveSummary =
+    riskLevel === "CRITICAL"
+      ? "Critical governance risk detected. Immediate remediation is recommended for high-risk repositories."
+      : riskLevel === "HIGH"
+        ? "High governance risk detected. Security teams should prioritize critical and high-severity findings."
+        : riskLevel === "MEDIUM"
+          ? "Moderate governance risk detected. Continued remediation and monitoring is recommended."
+          : "Current repository governance posture appears healthy.";
+
+  return {
+    governanceScore,
+    riskLevel,
+    totalRepos: row.total_repos,
+    criticalRepos,
+    totalViolations: row.total_violations,
+    totalCritical: row.total_critical,
+    totalHigh: row.total_high,
+    executiveSummary
+  };
+}

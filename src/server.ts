@@ -15,7 +15,8 @@ import { getScanDetails } from "./services/dashboardMetricsService";
 import { generateExecutiveSummary } from "./services/aiSummaryService";
 import { ComplianceViolation } from "./types/rules";
 import {
-  getRepositoryRiskLeaderboard
+  getRepositoryRiskLeaderboard,
+  getOrgPostureSummary
 } from "./services/dashboardMetricsService";
 
 const app = express();
@@ -174,6 +175,14 @@ app.get("/api/metrics/repo-leaderboard", async (_req, res) => {
 
   return res.json({
     data: leaderboard
+  });
+});
+
+app.get("/api/metrics/org-posture", async (_req, res) => {
+  const posture = await getOrgPostureSummary();
+
+  return res.json({
+    data: posture
   });
 });
 

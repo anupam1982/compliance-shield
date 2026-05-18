@@ -86,6 +86,29 @@ interface ScanDetails {
   violations: ScanViolation[];
 }
 
+interface RepositoryLeaderboardItem {
+  owner: string;
+  repo: string;
+  total_scans: number;
+  max_risk_score: number;
+  avg_risk_score: number;
+  critical_findings: number;
+  high_findings: number;
+  total_violations: number;
+  last_scan_at: string;
+}
+
+interface OrgPosture {
+  governanceScore: number;
+  riskLevel: string;
+  totalRepos: number;
+  criticalRepos: number;
+  totalViolations: number;
+  totalCritical: number;
+  totalHigh: number;
+  executiveSummary: string;
+}
+
 async function fetchData<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`);
 
@@ -107,7 +130,8 @@ function App() {
   const [risk, setRisk] = useState<RiskAnalytics[]>([]);
   const [selectedScan, setSelectedScan] = useState<ScanDetails | null>(null);
   const [scanDetailsLoading, setScanDetailsLoading] = useState(false);
-
+  const [leaderboard, setLeaderboard] = useState<RepositoryLeaderboardItem[]>([]);
+  const [orgPosture, setOrgPosture] = useState<OrgPosture | null>(null);
 
   async function openScanDetails(scanId: number) {
     try {
@@ -131,31 +155,24 @@ function App() {
 
   async function loadDashboard() {
     try {
-      // const [summaryData, scansData, reposData, trendsData] = await Promise.all([
-      //   fetchData<Summary>("/api/metrics/summary"),
-      //   fetchData<Scan[]>("/api/metrics/scans"),
-      //   fetchData<RepoSummary[]>("/api/metrics/repos"),
-      //   fetchData<Trend[]>("/api/metrics/trends")
-      // ]);
-
-      // setSummary(summaryData);
-      // setScans(scansData);
-      // setRepos(reposData);
-      // setTrends(trendsData);
       const [
         summaryData,
         scansData,
         reposData,
         trendsData,
         severityData,
-        riskData
+        riskData,
+        leaderboardData,
+        orgPostureData
       ] = await Promise.all([
         fetchData<Summary>("/api/metrics/summary"),
         fetchData<Scan[]>("/api/metrics/scans"),
         fetchData<RepoSummary[]>("/api/metrics/repos"),
         fetchData<Trend[]>("/api/metrics/trends"),
         fetchData<SeverityAnalytics>("/api/metrics/severity"),
-        fetchData<RiskAnalytics[]>("/api/metrics/risk")
+        fetchData<RiskAnalytics[]>("/api/metrics/risk"),
+        fetchData<RepositoryLeaderboardItem[]>("/api/metrics/repo-leaderboard"),
+        fetchData<OrgPosture>("/api/metrics/org-posture")        
       ]);
       
       setSummary(summaryData);
@@ -164,6 +181,8 @@ function App() {
       setTrends(trendsData);
       setSeverity(severityData);
       setRisk(riskData);
+      setLeaderboard(leaderboardData);
+      setOrgPosture(orgPostureData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard");
     }
@@ -186,6 +205,28 @@ function App() {
 
         <button onClick={loadDashboard}>Refresh</button>
       </section>
+      {orgPosture && (
+      <section className="org-posture-panel">
+        <div>
+          <p className="eyebrow">Enterprise Governance</p>
+          <h2>Organization Security Posture</h2>
+          <p>{orgPosture.executiveSummary}</p>
+        </div>
+
+        <div className="posture-score">
+          <span>Governance Score</span>
+          <strong>{orgPosture.governanceScore}/100</strong>
+          <em>{orgPosture.riskLevel}</em>
+        </div>
+
+        <div className="posture-stats">
+          <span>Repos: {orgPosture.totalRepos}</span>
+          <span>Critical repos: {orgPosture.criticalRepos}</span>
+          <span>Critical findings: {orgPosture.totalCritical}</span>
+          <span>High findings: {orgPosture.totalHigh}</span>
+        </div>
+      </section>
+    )}
 
       {error && <div className="error">{error}</div>}
 
@@ -339,6 +380,66 @@ function App() {
           </tbody>
         </table>
       </section>
+      <section className="panel">
+  <div className="panel-header">
+    <div>
+      <p className="eyebrow">
+        Governance
+      </p>
+
+      <h2>Top Risky Repositories</h2>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Repository</th>
+        <th>Max Risk</th>
+        <th>Avg Risk</th>
+        <th>Critical</th>
+        <th>Violations</th>
+        <th>Scans</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {leaderboard.map((repo) => (
+        <tr key={`${repo.owner}-${repo.repo}`}>
+          <td>
+            <strong>
+              {repo.owner}/{repo.repo}
+            </strong>
+          </td>
+
+          <td>
+            <span
+              className={`risk-pill ${
+                repo.max_risk_score >= 80
+                  ? "risk-critical"
+                  : repo.max_risk_score >= 60
+                  ? "risk-high"
+                  : repo.max_risk_score >= 30
+                  ? "risk-medium"
+                  : "risk-low"
+              }`}
+            >
+              {repo.max_risk_score}
+            </span>
+          </td>
+
+          <td>{repo.avg_risk_score}</td>
+
+          <td>{repo.critical_findings}</td>
+
+          <td>{repo.total_violations}</td>
+
+          <td>{repo.total_scans}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</section>
       {selectedScan && (
   <div className="modal-backdrop" onClick={() => setSelectedScan(null)}>
     <div className="modal" onClick={(event) => event.stopPropagation()}>
