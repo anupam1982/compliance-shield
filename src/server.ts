@@ -14,7 +14,9 @@ import cors from "cors";
 import { getScanDetails } from "./services/dashboardMetricsService";
 import { generateExecutiveSummary } from "./services/aiSummaryService";
 import { ComplianceViolation } from "./types/rules";
-
+import {
+  getRepositoryRiskLeaderboard
+} from "./services/dashboardMetricsService";
 
 const app = express();
 app.use(cors());
@@ -166,6 +168,14 @@ app.get(
     });
   }
 );
+
+app.get("/api/metrics/repo-leaderboard", async (_req, res) => {
+  const leaderboard = await getRepositoryRiskLeaderboard();
+
+  return res.json({
+    data: leaderboard
+  });
+});
 
 app.listen(port, () => {
   logger.info(

@@ -201,3 +201,29 @@ export async function getScanDetails(
     violations: violationsResult.rows
   };
 }
+
+export async function getRepositoryRiskLeaderboard() {
+  const pool = getPostgresPool();
+
+  if (!pool) {
+    return [];
+  }
+
+  const result = await pool.query(`
+    select
+      owner,
+      repo,
+      count(*)::int as total_scans,
+      max(risk_score)::int as max_risk_score,
+      round(avg(risk_score))::int as avg_risk_score,
+      sum(critical_count)::int as critical_findings,
+      sum(high_count)::int as high_findings,
+      sum(violations_found)::int as total_violations,
+      max(created_at) as last_scan_at
+    from scan_metrics
+    group by owner, repo
+    order by max_risk_score desc, critical_findings desc, high_findings desc
+  `);
+
+  return result.rows;
+}
