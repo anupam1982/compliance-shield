@@ -16,6 +16,7 @@ import {
 import { persistViolations } from "../services/violationPersistenceService";
 import { generateAIReview } from "../services/aiReviewerService";
 import { generateGovernanceResponse } from "../services/governanceCopilotService";
+import { generateAutofixSuggestions } from "../services/aiAutofixService";
 
 type IssueCommentEventName = "issue_comment.created";
 
@@ -60,6 +61,86 @@ export async function handleCommentCommand(
   const config = await loadComplianceConfig(context, repoInfo);
 
   const normalizedComment = commentBody.toLowerCase();
+
+  if (normalizedComment === "/compliance-shield autofix") {
+    const allowed = await hasCommandPermission(
+      context,
+      repoInfo,
+      config.commandPermissions["scan-repo"]
+    );
+  
+    if (!allowed) {
+      await denyPermission(
+        context,
+        repoInfo,
+        issue.number,
+        "/compliance-shield autofix"
+      );
+  
+      return;
+    }
+  
+    await upsertBotComment(
+      context,
+      repoInfo.owner,
+      repoInfo.repo,
+      issue.number,
+      "🤖 Compliance Shield is generating AI autofix suggestions..."
+    );
+  
+    try {
+      const result = await runRepositoryScan(
+        context,
+        repoInfo,
+        config
+      );
+  
+      const suggestions =
+        await generateAutofixSuggestions(
+          result.violations
+        );
+  
+      const formattedSuggestions =
+        suggestions
+          .map(
+            (s) => `
+  ### ${s.fileName}
+  
+  **Severity:** ${s.severity}
+  
+  **Problem:** ${s.problem}
+  
+  ${s.suggestion}
+  `
+          )
+          .join("\n---\n");
+  
+      await upsertBotComment(
+        context,
+        repoInfo.owner,
+        repoInfo.repo,
+        issue.number,
+        `
+  # 🤖 AI AutoFix Suggestions
+  
+  ${formattedSuggestions}
+  `
+      );
+    } catch (error) {
+      context.log.error("AI autofix failed");
+      context.log.error(error);
+  
+      await upsertBotComment(
+        context,
+        repoInfo.owner,
+        repoInfo.repo,
+        issue.number,
+        "🤖 AI autofix generation failed."
+      );
+    }
+  
+    return;
+  }
 
   if (normalizedComment === "/compliance-shield explain") {
     const allowed = await hasCommandPermission(
