@@ -21,7 +21,6 @@ import {
 } from "./services/dashboardMetricsService";
 import { runMigrations } from "./db/migrations/runMigrations";
 
-
 const app = express();
 app.use(cors());
 
