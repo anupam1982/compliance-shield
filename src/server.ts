@@ -21,12 +21,29 @@ import {
   getOverrideGovernanceSummary
 } from "./services/dashboardMetricsService";
 import { runMigrations } from "./db/migrations/runMigrations";
+import { Probot, createNodeMiddleware } from "probot";
+import complianceShieldApp from "./app";
 
 
 const app = express();
 app.use(cors());
 
 const port = Number(process.env.PORT || 3000);
+
+const probot = new Probot({
+  appId: process.env.APP_ID,
+  privateKey: process.env.PRIVATE_KEY,
+  secret: process.env.WEBHOOK_SECRET
+});
+
+probot.load(complianceShieldApp);
+
+app.use(
+  "/api/github/webhooks",
+  createNodeMiddleware(complianceShieldApp, {
+    probot
+  })
+);
 
 app.get("/health", async (_req, res) => {
   try {
