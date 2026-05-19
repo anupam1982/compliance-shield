@@ -1,5 +1,3 @@
-import dotenv from "dotenv";
-dotenv.config();
 import { getPostgresPool } from "../postgres";
 
 export async function createOverrideAuditsTable(): Promise<void> {

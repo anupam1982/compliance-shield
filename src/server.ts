@@ -21,6 +21,7 @@ import {
 } from "./services/dashboardMetricsService";
 import { runMigrations } from "./db/migrations/runMigrations";
 
+
 const app = express();
 app.use(cors());
 
@@ -196,25 +197,26 @@ app.get("/api/metrics/overrides", async (_req, res) => {
   });
 });
 
-// app.listen(port, () => {
-//   logger.info(
-//     {
-//       event: "server.started",
-//       port
-//     },
-//     "Health server started"
-//   );
-// });
-
 async function bootstrap() {
   await runMigrations();
 
   app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
+    logger.info(
+      {
+        event: "server.started",
+        port
+      },
+      "Health server started"
+    );
   });
 }
 bootstrap().catch((error) => {
-  console.error("Failed to start server");
-  console.error(error);
+  logger.error(
+    {
+      event: "server.bootstrap_failed",
+      error
+    },
+    "Failed to start server"
+  );
   process.exit(1);
 });
