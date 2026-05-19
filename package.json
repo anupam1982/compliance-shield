@@ -11,7 +11,7 @@
     "main": "lib/app.js",
     "scripts": {
         "build": "tsc",
-        "start": "probot run ./lib/app.js",
+        "start": "node lib/server.js",
         "scheduled-scan": "npm run build && node ./lib/scripts/runScheduledScan.js",
         "test": "jest",
         "test:watch": "jest --watch",
