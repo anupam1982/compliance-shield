@@ -46,6 +46,7 @@ export interface ComplianceConfigFile extends Partial<ComplianceRuleSet> {
   policyPack?: string;
   blockSecrets?: boolean;
   blockWeakCrypto?: boolean;
+  ignorePaths?: string[];
 }
 
 export interface ComplianceViolation {
