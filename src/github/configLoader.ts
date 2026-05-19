@@ -16,6 +16,7 @@ import {
 } from "../types/rules";
 import { RepositoryContextInfo } from "../types/githubContext";
 import { validateComplianceConfig } from "../utils/configValidator";
+import { getCompliancePolicyPack } from "../policy-packs";
 
 const validSeverityLevels: SeverityLevel[] = ["low", "medium", "high", "critical"];
 const validScanModes: ScanMode[] = ["diff", "full-file"];
@@ -205,6 +206,14 @@ async function loadYamlConfigFile(
         context.log.error(error);
       }
       return undefined;
+    }
+    const selectedPolicyPack = getCompliancePolicyPack(
+      parsed.policyPack
+    );
+    
+    if (selectedPolicyPack) {
+      parsed.blockSecrets = selectedPolicyPack.rules.blockSecrets;
+      parsed.blockWeakCrypto = selectedPolicyPack.rules.blockWeakCrypto;
     }
     return parsed;
   } catch (error: unknown) {

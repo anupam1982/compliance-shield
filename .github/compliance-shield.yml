@@ -1,4 +1,5 @@
 policy: strict
+policyPack: soc2
 scanMode: full-file
 minimumSeverityToFail: high
 
@@ -7,6 +8,9 @@ ignorePaths:
   - "lib/"
   - "coverage/"
   - ".git/"
+  - tests/**
+  - docs/**
+  - src/policy-packs/**
 
 ignoreIndicators: []
 

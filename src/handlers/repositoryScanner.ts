@@ -4,6 +4,7 @@ import { RepositoryScanResult, RepositoryFileToScan } from "../types/repositoryS
 import { RepositoryContextInfo } from "../types/githubContext";
 import { isLikelyTextFile } from "../utils/contentClassifier";
 import { runRepositoryComplianceChecks } from "../rules/ruleEngine";
+import { shouldIgnoreFile } from "../utils/pathIgnore";
 
 interface GitHubTreeItem {
   path: string;
@@ -121,7 +122,12 @@ export async function scanRepository(
       continue;
     }
 
-    if (rules.ignorePaths.some((ignorePath) => item.path.startsWith(ignorePath))) {
+    // if (rules.ignorePaths.some((ignorePath) => item.path.startsWith(ignorePath))) {
+    //   skippedByPath += 1;
+    //   continue;
+    // }
+
+    if (shouldIgnoreFile(item.path, rules.ignorePaths)) {
       skippedByPath += 1;
       continue;
     }
