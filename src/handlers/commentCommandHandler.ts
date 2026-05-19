@@ -17,6 +17,7 @@ import { persistViolations } from "../services/violationPersistenceService";
 import { generateAIReview } from "../services/aiReviewerService";
 import { generateGovernanceResponse } from "../services/governanceCopilotService";
 import { generateAutofixSuggestions } from "../services/aiAutofixService";
+import { recordOverrideAudit } from "../services/overrideAuditService";
 
 type IssueCommentEventName = "issue_comment.created";
 
@@ -282,6 +283,97 @@ ${review.summary}
         repoInfo.repo,
         issue.number,
         "🤖 Governance Copilot failed."
+      );
+    }
+  
+    return;
+  }
+
+  if (
+    normalizedComment.startsWith(
+      "/compliance-shield override"
+    )
+  ) {
+    const allowed = await hasCommandPermission(
+      context,
+      repoInfo,
+      "admin"
+    );
+  
+    if (!allowed) {
+      await denyPermission(
+        context,
+        repoInfo,
+        issue.number,
+        "/compliance-shield override"
+      );
+  
+      return;
+    }
+  
+    const reasonMatch =
+      commentBody.match(/reason:(.*)/i);
+  
+    const reason =
+      reasonMatch?.[1]?.trim() ??
+      "No reason provided";
+  
+    try {
+      const result = await runRepositoryScan(
+        context,
+        repoInfo,
+        config
+      );
+  
+      const severityCounts =
+        calculateSeverityCounts(
+          result.violations
+        );
+  
+      const riskScore =
+        calculateRepositoryRiskScore(
+          severityCounts
+        );
+  
+      await recordOverrideAudit({
+        owner: repoInfo.owner,
+        repo: repoInfo.repo,
+        prNumber: issue.number,
+        approvedBy: actor,
+        reason,
+        riskScore
+      });
+  
+      await upsertBotComment(
+        context,
+        repoInfo.owner,
+        repoInfo.repo,
+        issue.number,
+        `
+  ## 🛡️ Compliance Override Approved
+  
+  **Approved by:** ${actor}
+  
+  **Reason:** ${reason}
+  
+  **Risk Score:** ${riskScore}/100
+  
+  This override has been recorded in the governance audit trail.
+  `
+      );
+    } catch (error) {
+      context.log.error(
+        "Override workflow failed"
+      );
+  
+      context.log.error(error);
+  
+      await upsertBotComment(
+        context,
+        repoInfo.owner,
+        repoInfo.repo,
+        issue.number,
+        "🛡️ Failed to record override."
       );
     }
   
