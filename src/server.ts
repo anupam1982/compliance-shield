@@ -16,8 +16,10 @@ import { generateExecutiveSummary } from "./services/aiSummaryService";
 import { ComplianceViolation } from "./types/rules";
 import {
   getRepositoryRiskLeaderboard,
-  getOrgPostureSummary
+  getOrgPostureSummary,
+  getRecentOverrides
 } from "./services/dashboardMetricsService";
+
 
 const app = express();
 app.use(cors());
@@ -183,6 +185,14 @@ app.get("/api/metrics/org-posture", async (_req, res) => {
 
   return res.json({
     data: posture
+  });
+});
+
+app.get("/api/metrics/overrides", async (_req, res) => {
+  const overrides = await getRecentOverrides();
+
+  return res.json({
+    data: overrides
   });
 });
 

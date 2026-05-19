@@ -302,3 +302,20 @@ export async function getOrgPostureSummary() {
     executiveSummary
   };
 }
+
+export async function getRecentOverrides() {
+  const pool = getPostgresPool();
+
+  if (!pool) {
+    return [];
+  }
+
+  const result = await pool.query(`
+    select *
+    from override_audits
+    order by created_at desc
+    limit 20
+  `);
+
+  return result.rows;
+}
