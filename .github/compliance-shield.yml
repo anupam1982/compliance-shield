@@ -30,3 +30,8 @@ ai:
   enabled: false
   provider: openai
   remediationSuggestions: true
+
+governance:
+  overrideApprovers:
+    - "anupam1982"
+  requireOverrideReason: true

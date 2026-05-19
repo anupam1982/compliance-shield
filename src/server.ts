@@ -17,9 +17,11 @@ import { ComplianceViolation } from "./types/rules";
 import {
   getRepositoryRiskLeaderboard,
   getOrgPostureSummary,
-  getRecentOverrides
+  getRecentOverrides,
+  getOverrideGovernanceSummary
 } from "./services/dashboardMetricsService";
 import { runMigrations } from "./db/migrations/runMigrations";
+
 
 const app = express();
 app.use(cors());
@@ -195,6 +197,18 @@ app.get("/api/metrics/overrides", async (_req, res) => {
     data: overrides
   });
 });
+
+app.get(
+  "/api/metrics/override-summary",
+  async (_req, res) => {
+    const summary =
+      await getOverrideGovernanceSummary();
+
+    return res.json({
+      data: summary
+    });
+  }
+);
 
 async function bootstrap() {
   await runMigrations();

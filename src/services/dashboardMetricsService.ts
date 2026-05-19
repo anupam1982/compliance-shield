@@ -319,3 +319,81 @@ export async function getRecentOverrides() {
 
   return result.rows;
 }
+
+export async function getOverrideGovernanceSummary() {
+  const pool = getPostgresPool();
+
+  if (!pool) {
+    return {
+      activeOverrides: 0,
+      expiredOverrides: 0,
+      totalOverrides: 0
+    };
+  }
+
+  const result = await pool.query(`
+    select
+      count(*)::int as total_overrides,
+
+      count(*) filter (
+        where status = 'ACTIVE'
+      )::int as active_overrides,
+
+      count(*) filter (
+        where status = 'EXPIRED'
+      )::int as expired_overrides
+
+    from override_audits
+  `);
+
+  return result.rows[0];
+}
+
+export async function getGovernanceDebtScore() {
+  const pool = getPostgresPool();
+
+  if (!pool) {
+    return {
+      debtScore: 0,
+      level: "LOW"
+    };
+  }
+
+  const result = await pool.query(`
+    select
+      count(*) filter (
+        where status = 'ACTIVE'
+      )::int as active,
+
+      count(*) filter (
+        where status = 'EXPIRED'
+      )::int as expired,
+
+      coalesce(avg(risk_score), 0)::int as avg_risk
+
+    from override_audits
+  `);
+
+  const row = result.rows[0];
+
+  const debtScore = Math.min(
+    100,
+    row.active * 10 +
+      row.expired * 20 +
+      row.avg_risk
+  );
+
+  const level =
+    debtScore >= 80
+      ? "CRITICAL"
+      : debtScore >= 60
+      ? "HIGH"
+      : debtScore >= 30
+      ? "MEDIUM"
+      : "LOW";
+
+  return {
+    debtScore,
+    level
+  };
+}
