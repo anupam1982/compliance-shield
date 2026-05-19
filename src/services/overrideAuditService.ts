@@ -7,6 +7,8 @@ interface OverrideAuditInput {
   approvedBy: string;
   reason: string;
   riskScore?: number;
+  expiresAt?: Date;
+  status?: "ACTIVE" | "EXPIRED";
 }
 
 export async function recordOverrideAudit(
@@ -26,9 +28,11 @@ export async function recordOverrideAudit(
         pr_number,
         approved_by,
         reason,
-        risk_score
+        risk_score,
+        expires_at,
+        status
       )
-      values ($1, $2, $3, $4, $5, $6)
+      values ($1, $2, $3, $4, $5, $6, $7, $8)
     `,
     [
       input.owner,
@@ -36,7 +40,9 @@ export async function recordOverrideAudit(
       input.prNumber,
       input.approvedBy,
       input.reason,
-      input.riskScore ?? null
+      input.riskScore ?? null,
+      input.expiresAt ?? null,
+      input.status ?? "ACTIVE"
     ]
   );
 }

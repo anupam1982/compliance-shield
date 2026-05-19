@@ -23,6 +23,10 @@ export async function createOverrideAuditsTable(): Promise<void> {
       reason text not null,
 
       risk_score integer,
+      
+      expires_at timestamptz,
+
+      status text not null default 'active',
 
       created_at timestamptz not null default now()
     );

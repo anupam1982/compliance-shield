@@ -317,6 +317,19 @@ ${review.summary}
     const reason =
       reasonMatch?.[1]?.trim() ??
       "No reason provided";
+
+      const expiresMatch =
+      commentBody.match(/expires:(\d+)d/i);
+
+    let expiresAt: Date | undefined;
+
+    if (expiresMatch) {
+      const days = Number(expiresMatch[1]);
+
+      expiresAt = new Date(
+        Date.now() + days * 24 * 60 * 60 * 1000
+      );
+    }
   
     try {
       const result = await runRepositoryScan(
@@ -341,7 +354,8 @@ ${review.summary}
         prNumber: issue.number,
         approvedBy: actor,
         reason,
-        riskScore
+        riskScore,
+        expiresAt
       });
   
       await upsertBotComment(
