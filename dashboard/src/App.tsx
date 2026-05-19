@@ -109,6 +109,17 @@ interface OrgPosture {
   executiveSummary: string;
 }
 
+interface OverrideGovernanceSummary {
+  active_overrides: number;
+  expired_overrides: number;
+  total_overrides: number;
+}
+
+interface GovernanceDebt {
+  debtScore: number;
+  level: string;
+}
+
 async function fetchData<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`);
 
@@ -132,6 +143,13 @@ function App() {
   const [scanDetailsLoading, setScanDetailsLoading] = useState(false);
   const [leaderboard, setLeaderboard] = useState<RepositoryLeaderboardItem[]>([]);
   const [orgPosture, setOrgPosture] = useState<OrgPosture | null>(null);
+  const [
+    overrideSummary,
+    setOverrideSummary
+  ] = useState<OverrideGovernanceSummary | null>(
+    null
+  );
+  const [governanceDebt, setGovernanceDebt] = useState<GovernanceDebt | null>(null);
 
   async function openScanDetails(scanId: number) {
     try {
@@ -163,7 +181,9 @@ function App() {
         severityData,
         riskData,
         leaderboardData,
-        orgPostureData
+        orgPostureData,
+        overrideSummaryData,
+        governanceDebtData
       ] = await Promise.all([
         fetchData<Summary>("/api/metrics/summary"),
         fetchData<Scan[]>("/api/metrics/scans"),
@@ -172,7 +192,9 @@ function App() {
         fetchData<SeverityAnalytics>("/api/metrics/severity"),
         fetchData<RiskAnalytics[]>("/api/metrics/risk"),
         fetchData<RepositoryLeaderboardItem[]>("/api/metrics/repo-leaderboard"),
-        fetchData<OrgPosture>("/api/metrics/org-posture")        
+        fetchData<OrgPosture>("/api/metrics/org-posture"),
+        fetchData<OverrideGovernanceSummary>("/api/metrics/override-summary"),
+        fetchData<GovernanceDebt>("/api/metrics/governance-debt")
       ]);
       
       setSummary(summaryData);
@@ -183,6 +205,8 @@ function App() {
       setRisk(riskData);
       setLeaderboard(leaderboardData);
       setOrgPosture(orgPostureData);
+      setOverrideSummary(overrideSummaryData);
+      setGovernanceDebt(governanceDebtData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard");
     }
@@ -227,7 +251,74 @@ function App() {
         </div>
       </section>
     )}
+    {overrideSummary && (
+  <section className="panel">
+    <div className="panel-header">
+      <div>
+        <p className="eyebrow">
+          Governance
+        </p>
 
+        <h2>Override Governance</h2>
+      </div>
+    </div>
+
+    <div className="cards">
+      <div className="card">
+        <p>Active Overrides</p>
+
+        <strong>
+          {overrideSummary.active_overrides}
+        </strong>
+      </div>
+
+      <div className="card">
+        <p>Expired Overrides</p>
+
+        <strong>
+          {overrideSummary.expired_overrides}
+        </strong>
+      </div>
+
+      <div className="card">
+        <p>Total Overrides</p>
+
+        <strong>
+          {overrideSummary.total_overrides}
+        </strong>
+      </div>
+    </div>
+  </section>
+)}
+{governanceDebt && (
+  <section className="panel">
+    <div className="panel-header">
+      <div>
+        <p className="eyebrow">
+          Governance Debt
+        </p>
+
+        <h2>
+          Governance Debt Score
+        </h2>
+      </div>
+    </div>
+
+    <div className="card">
+      <p>Current Debt Level</p>
+
+      <strong>
+        {governanceDebt.debtScore}/100
+      </strong>
+
+      <p>
+        Risk Level:
+        {" "}
+        {governanceDebt.level}
+      </p>
+    </div>
+  </section>
+)}
       {error && <div className="error">{error}</div>}
 
       <section className="cards">

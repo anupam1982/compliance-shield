@@ -39,6 +39,10 @@ export interface ComplianceRuleSet {
   maxFileSizeKB: number;
   parallelFileFetchLimit: number;
   commandPermissions: CommandPermissions;
+  governance?: {
+    overrideApprovers?: string[];
+    requireOverrideReason?: boolean;
+  };
 }
 
 export interface ComplianceConfigFile extends Partial<ComplianceRuleSet> {

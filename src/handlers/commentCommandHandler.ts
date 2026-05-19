@@ -318,6 +318,22 @@ ${review.summary}
       reasonMatch?.[1]?.trim() ??
       "No reason provided";
 
+      const approvers = config.governance?.overrideApprovers ?? [];
+  if (
+    approvers.length > 0 &&
+    !approvers.includes(actor)
+  ) {
+    await denyPermission(
+      context,
+      repoInfo,
+      issue.number,
+      "/compliance-shield override"
+    );
+
+    return;
+  }
+
+
       const expiresMatch =
       commentBody.match(/expires:(\d+)d/i);
 
