@@ -19,7 +19,7 @@ import {
   getOrgPostureSummary,
   getRecentOverrides
 } from "./services/dashboardMetricsService";
-
+import { runMigrations } from "./db/migrations/runMigrations";
 
 const app = express();
 app.use(cors());
@@ -196,12 +196,26 @@ app.get("/api/metrics/overrides", async (_req, res) => {
   });
 });
 
-app.listen(port, () => {
-  logger.info(
+async function bootstrap() {
+  await runMigrations();
+
+  app.listen(port, () => {
+    logger.info(
+      {
+        event: "server.started",
+        port
+      },
+      "Health server started"
+    );
+  });
+}
+bootstrap().catch((error) => {
+  logger.error(
     {
-      event: "server.started",
-      port
+      event: "server.bootstrap_failed",
+      error
     },
-    "Health server started"
+    "Failed to start server"
   );
+  process.exit(1);
 });
