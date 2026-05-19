@@ -1,4 +1,5 @@
 policy: strict
+policyPack: soc2
 scanMode: full-file
 minimumSeverityToFail: high
 
