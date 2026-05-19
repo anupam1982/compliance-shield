@@ -41,7 +41,8 @@ probot.load(complianceShieldApp);
 app.use(
   "/api/github/webhooks",
   createNodeMiddleware(complianceShieldApp, {
-    probot
+    probot,
+    webhooksPath: "/"
   })
 );
 
