@@ -27,17 +27,33 @@ import complianceShieldApp from "./app";
 
 
 const app = express();
+// const probot = new Probot({
+//   appId: process.env.APP_ID!,
+//   privateKey: process.env.PRIVATE_KEY!,
+//   secret: process.env.WEBHOOK_SECRET
+// });
+// app.use(
+//   "/api/github/webhooks",
+//   createNodeMiddleware(complianceShieldApp, {
+//     probot,
+//     webhooksPath: "/api/github/webhooks"
+//   })
+// );
+
 const probot = new Probot({
   appId: process.env.APP_ID!,
   privateKey: process.env.PRIVATE_KEY!,
   secret: process.env.WEBHOOK_SECRET
 });
+
 app.use(
-  "/api/github/webhooks",
   createNodeMiddleware(complianceShieldApp, {
-    probot
+    probot,
+    webhooksPath: "/api/github/webhooks"
   })
 );
+
+
 const allowedOrigins: string[] = [
   "http://localhost:5173",
   ...(process.env.CORS_ORIGIN
