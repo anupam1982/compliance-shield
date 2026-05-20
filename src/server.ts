@@ -18,7 +18,8 @@ import {
   getRepositoryRiskLeaderboard,
   getOrgPostureSummary,
   getRecentOverrides,
-  getOverrideGovernanceSummary
+  getOverrideGovernanceSummary,
+  getGovernanceDebtScore
 } from "./services/dashboardMetricsService";
 import { runMigrations } from "./db/migrations/runMigrations";
 
@@ -218,6 +219,14 @@ app.get(
     });
   }
 );
+
+app.get("/api/metrics/governance-debt", async (_req, res) => {
+  const debt = await getGovernanceDebtScore();
+
+  return res.json({
+    data: debt
+  });
+});
 
 async function bootstrap() {
   await runMigrations();
