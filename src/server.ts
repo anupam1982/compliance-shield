@@ -18,13 +18,23 @@ import {
   getRepositoryRiskLeaderboard,
   getOrgPostureSummary,
   getRecentOverrides,
-  getOverrideGovernanceSummary
+  getOverrideGovernanceSummary,
+  getGovernanceDebtScore
 } from "./services/dashboardMetricsService";
 import { runMigrations } from "./db/migrations/runMigrations";
 
 
 const app = express();
-app.use(cors());
+const allowedOrigins: string[] = [
+  "http://localhost:5173",
+  process.env.CORS_ORIGIN
+].filter((origin): origin is string => Boolean(origin));
+
+app.use(
+  cors({
+    origin: allowedOrigins
+  })
+);
 
 const port = Number(process.env.PORT || 3000);
 
@@ -209,6 +219,14 @@ app.get(
     });
   }
 );
+
+app.get("/api/metrics/governance-debt", async (_req, res) => {
+  const debt = await getGovernanceDebtScore();
+
+  return res.json({
+    data: debt
+  });
+});
 
 async function bootstrap() {
   await runMigrations();
