@@ -22,9 +22,22 @@ import {
   getGovernanceDebtScore
 } from "./services/dashboardMetricsService";
 import { runMigrations } from "./db/migrations/runMigrations";
+import { Probot, createNodeMiddleware } from "probot";
+import complianceShieldApp from "./app";
 
 
 const app = express();
+const probot = new Probot({
+  appId: process.env.APP_ID!,
+  privateKey: process.env.PRIVATE_KEY!,
+  secret: process.env.WEBHOOK_SECRET
+});
+app.use(
+  "/api/github/webhooks",
+  createNodeMiddleware(complianceShieldApp, {
+    probot
+  })
+);
 const allowedOrigins: string[] = [
   "http://localhost:5173",
   ...(process.env.CORS_ORIGIN
