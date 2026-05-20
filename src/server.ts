@@ -27,8 +27,10 @@ import { runMigrations } from "./db/migrations/runMigrations";
 const app = express();
 const allowedOrigins: string[] = [
   "http://localhost:5173",
-  process.env.CORS_ORIGIN
-].filter((origin): origin is string => Boolean(origin));
+  ...(process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim())
+    : [])
+];
 
 app.use(
   cors({
