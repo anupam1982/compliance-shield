@@ -42,6 +42,18 @@ async function denyPermission(
   );
 }
 
+async function safeRecordUsageEvent(
+  context: Context<IssueCommentEventName>,
+  input: Parameters<typeof recordUsageEvent>[0]
+): Promise<void> {
+  try {
+    await recordUsageEvent(input);
+  } catch (error) {
+    context.log.warn("Usage metering failed");
+    context.log.warn(error);
+  }
+}
+
 export async function handleCommentCommand(
   context: Context<IssueCommentEventName>
 ): Promise<void> {
@@ -67,17 +79,30 @@ export async function handleCommentCommand(
   const normalizedComment = commentBody.toLowerCase();
 
   if (normalizedComment === "/compliance-shield autofix") {
-    await recordUsageEvent({
-      installationId,
-      accountLogin,
-      owner: repoInfo.owner,
-      repo: repoInfo.repo,
-      eventType: "autofix_requested",
-      metadata: {
-        prNumber: issue.number,
-        triggeredBy: actor
-      }
-    });
+  await safeRecordUsageEvent(context, {
+    installationId,
+    accountLogin,
+    owner: repoInfo.owner,
+    repo: repoInfo.repo,
+    eventType: "autofix_requested",
+    metadata: {
+      prNumber: issue.number,
+      triggeredBy: actor
+    }
+  });
+
+    // await recordUsageEvent({
+    //   installationId,
+    //   accountLogin,
+    //   owner: repoInfo.owner,
+    //   repo: repoInfo.repo,
+    //   eventType: "autofix_requested",
+    //   metadata: {
+    //     prNumber: issue.number,
+    //     triggeredBy: actor
+    //   }
+    // });
+
     const allowed = await hasCommandPermission(
       context,
       repoInfo,
@@ -93,6 +118,8 @@ export async function handleCommentCommand(
       );
       return;
     }
+
+    
 
     await upsertBotComment(
       context,
@@ -148,7 +175,7 @@ ${formattedSuggestions}
   }
 
   if (normalizedComment === "/compliance-shield explain") {
-    await recordUsageEvent({
+    await safeRecordUsageEvent(context, {
       installationId,
       accountLogin,
       owner: repoInfo.owner,
@@ -159,6 +186,17 @@ ${formattedSuggestions}
         triggeredBy: actor
       }
     });
+    // await recordUsageEvent({
+    //   installationId,
+    //   accountLogin,
+    //   owner: repoInfo.owner,
+    //   repo: repoInfo.repo,
+    //   eventType: "ai_review_requested",
+    //   metadata: {
+    //     prNumber: issue.number,
+    //     triggeredBy: actor
+    //   }
+    // });
     const allowed = await hasCommandPermission(
       context,
       repoInfo,
@@ -248,7 +286,15 @@ ${review.summary}
       const result = await runRepositoryScan(context, repoInfo, config);
 
       let question = "";
-
+      context.log.info(
+        {
+          command: normalizedComment,
+          repo: `${repoInfo.owner}/${repoInfo.repo}`,
+          issue: issue.number,
+          actor
+        },
+        "Compliance Shield command received"
+      );
       switch (normalizedComment) {
         case "/compliance-shield why-blocked":
           question = "Why should this pull request be blocked?";
@@ -300,7 +346,7 @@ ${response}
     const expiresMatch = commentBody.match(/expires:(\d+)d/i);
     let expiresAt: Date | undefined;
 
-    await recordUsageEvent({
+    await safeRecordUsageEvent(context, {
       installationId,
       accountLogin,
       owner: repoInfo.owner,
@@ -313,6 +359,20 @@ ${response}
         expiresAt: expiresAt?.toISOString()
       }
     });
+
+    // await recordUsageEvent({
+    //   installationId,
+    //   accountLogin,
+    //   owner: repoInfo.owner,
+    //   repo: repoInfo.repo,
+    //   eventType: "override_created",
+    //   metadata: {
+    //     prNumber: issue.number,
+    //     triggeredBy: actor,
+    //     reason,
+    //     expiresAt: expiresAt?.toISOString()
+    //   }
+    // });
     const allowed = await hasCommandPermission(context, repoInfo, "admin");
 
     if (!allowed) {
@@ -586,7 +646,7 @@ ${historyText || "No scan history yet"}
     }
 
     try {
-      await recordUsageEvent({
+      await safeRecordUsageEvent(context, {
         installationId,
         accountLogin,
         owner: repoInfo.owner,
@@ -597,6 +657,17 @@ ${historyText || "No scan history yet"}
           triggeredBy: actor
         }
       });
+      // await recordUsageEvent({
+      //   installationId,
+      //   accountLogin,
+      //   owner: repoInfo.owner,
+      //   repo: repoInfo.repo,
+      //   eventType: "scan_queued",
+      //   metadata: {
+      //     prNumber: issue.number,
+      //     triggeredBy: actor
+      //   }
+      // });
       const job = await scanQueue.add(
         "repository-scan",
         {
