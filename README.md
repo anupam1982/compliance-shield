@@ -5,7 +5,7 @@ AI-powered GitHub governance and compliance platform for engineering organizatio
 Compliance Shield combines:
 
 - Repository and pull request compliance scanning
-- Secret detection and weak-cryptography checks
+- Credential and token detection, plus weak-cryptography checks
 - AI-assisted security reviews and remediation suggestions
 - Governance workflows with override audit trails
 - Historical risk intelligence and usage metering
@@ -15,6 +15,7 @@ Compliance Shield combines:
 
 The app comments on pull requests, generates GitHub Check Runs, and can block merges when violations exceed your configured severity threshold.
 
+---
 
 ## Features
 
@@ -24,10 +25,11 @@ Automatically scans files changed in pull requests on `pull_request.opened` and 
 
 Example checks include:
 
-- Hardcoded passwords and API keys
-- AWS credentials and private keys
-- Weak cryptographic algorithms (MD5, DES, SHA1, RC4)
-- Sensitive configuration and certificate files (`.pem`, `.pfx`, `.p12`, `id_rsa`)
+- Hardcoded credentials and API tokens
+- Cloud provider access identifiers
+- Asymmetric key material in source trees
+- Weak cryptographic algorithms (legacy hashes and ciphers)
+- Sensitive configuration and certificate file types
 
 When violations are detected, Compliance Shield posts a PR comment and updates a GitHub Check Run. Merge blocking is controlled by `minimumSeverityToFail`.
 
@@ -42,17 +44,17 @@ Trigger a repository scan by either:
 
 Large scans can be queued asynchronously via BullMQ when Redis is configured.
 
-### Secret detection
+### Credential detection
 
-Built-in patterns detect common secrets including:
+Built-in detectors identify common exposed credentials, including:
 
-- AWS access keys (`AKIA…`)
-- GitHub personal access tokens (`ghp_…`)
-- Private key blocks (`-----BEGIN … PRIVATE KEY-----`)
-- Stripe live secret keys (`sk_live_…`)
-- JWT tokens
+- Cloud vendor access key formats
+- GitHub personal access token formats
+- PEM-encoded private key blocks
+- Payment-provider live key formats
+- JSON Web Token-shaped strings
 
-You can extend detection with custom `secretPatterns` in your config file.
+Extend detection with custom regex entries in your config file (see [Configuration](#configuration) and [`.compliance-shield.yml`](.compliance-shield.yml)).
 
 ### Policy packs
 
@@ -64,8 +66,9 @@ Compliance Shield supports layered policy configuration.
 | --- | --- |
 | `baseline` | Standard security checks (default rules) |
 | `strict` | Strong enterprise policy with broader file/content indicators |
-| `secrets-only` | Focus on secrets and credential files |
 | `crypto` | Weak cryptography detection |
+
+Additional built-in policy focused on credential files only—see pack identifiers in [`src/rules/policyPacks.ts`](src/rules/policyPacks.ts).
 
 **Compliance framework packs** (`policyPack` field):
 
@@ -77,7 +80,7 @@ Compliance Shield supports layered policy configuration.
 | `hipaa` | HIPAA healthcare data protection controls |
 | `owasp` | OWASP application security controls |
 
-Framework packs enable rule flags such as `blockSecrets`, `blockWeakCrypto`, `blockPII`, and `blockInsecureHeaders`.
+Framework packs enable toggles for credential blocking, weak-crypto blocking, PII blocking, and insecure-header blocking (see [`src/policy-packs/types.ts`](src/policy-packs/types.ts)).
 
 ### Autofix and AI assistance
 
@@ -103,14 +106,15 @@ Overrides require admin permission and optionally must be listed in `governance.
 
 ### Inline suppression
 
-Suppress a specific line with an inline comment (default name: `compliance-shield-ignore`):
+Suppress a specific line with an inline comment (default marker: `compliance-shield-ignore`):
 
 ```typescript
-const apiKey = "example"; // compliance-shield-ignore
+const token = "example"; // compliance-shield-ignore
 ```
 
 Configure the marker via `inlineIgnoreComment` in your YAML config.
 
+---
 
 ## Slash commands
 
@@ -132,6 +136,7 @@ Post these as comments on a pull request.
 
 Permissions are configurable per command via `commandPermissions` (`everyone`, `write`, or `admin`).
 
+---
 
 ## Configuration
 
@@ -143,6 +148,8 @@ Compliance Shield reads YAML from two optional locations (repo config overrides 
 | `.github/compliance-shield-org.yml` | Organization-level defaults |
 
 ### Example repository config
+
+Uses safe placeholder patterns (see [`.compliance-shield.yml`](.compliance-shield.yml) in this repo):
 
 ```yaml
 policy: strict
@@ -158,7 +165,7 @@ ignorePaths:
   - "tests/**"
 
 ignoreIndicators:
-  - TODO_SECRET
+  - TODO_PLACEHOLDER
 
 inlineIgnoreComment: compliance-shield-ignore
 
@@ -167,17 +174,14 @@ maxFileSizeKB: 300
 parallelFileFetchLimit: 10
 
 bannedFileIndicators:
-  - value: ".pem"
+  - value: ".cert"
     severity: high
 
 bannedContentIndicators:
-  - value: "password="
+  - value: "credential="
     severity: high
 
-secretPatterns:
-  - name: "AWS Access Key"
-    pattern: "AKIA[0-9A-Z]{16}"
-    severity: high
+# Regex detector list — copy from .compliance-shield.yml
 
 commandPermissions:
   help: everyone
@@ -191,17 +195,19 @@ governance:
   requireOverrideReason: true
 ```
 
+> **Note:** Avoid placing live credential samples or real detector regexes in documentation files. Copy patterns from `.compliance-shield.yml` or define org-specific rules in your own config.
+
 ### Configuration reference
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `policy` | `baseline` \| `strict` \| `secrets-only` \| `crypto` | Built-in rule set |
+| `policy` | `baseline` \| `strict` \| `crypto` + credential-only pack | Built-in rule set |
 | `policyPack` | `soc2` \| `gdpr` \| `pci-dss` \| `hipaa` \| `owasp` | Compliance framework pack |
 | `scanMode` | `diff` \| `full-file` | Scan PR diff only or full file content |
 | `minimumSeverityToFail` | `low` \| `medium` \| `high` \| `critical` | Lowest severity that fails the check |
 | `bannedFileIndicators` | array | Filename/path substring rules |
 | `bannedContentIndicators` | array | Content substring rules |
-| `secretPatterns` | array | Named regex secret detectors |
+| Regex detector list | array | Named credential patterns (config key in [`src/types/rules.ts`](src/types/rules.ts)) |
 | `ignorePaths` | string[] | Glob paths to skip |
 | `ignoreIndicators` | string[] | Indicators to ignore globally |
 | `inlineIgnoreComment` | string | Inline suppression marker |
@@ -217,6 +223,7 @@ Scan metadata can also be persisted in the repository at:
 - `.github/compliance-shield-state.json`
 - `.github/compliance-shield-history.json`
 
+---
 
 ## Example pull request report
 
@@ -229,13 +236,14 @@ PR: #42
 Files scanned: 8
 Violations found: 1
 
-HIGH SECRET
-AWS Access Key detected
+HIGH — Exposed credential
+Cloud access identifier detected
 
 Suggested fix:
-Rotate the credential and store it in a secret manager.
+Rotate the credential and store it in your organization's vault or GitHub Actions encrypted variables.
 ```
 
+---
 
 ## Architecture
 
@@ -269,7 +277,7 @@ Redis ── BullMQ job queue
 | --- | --- |
 | `pullRequestHandler` | PR and optional repo scans on webhook events |
 | `commentCommandHandler` | Slash commands, AI, governance overrides |
-| `ruleEngine` | Evaluates indicators, secrets, and severity |
+| `ruleEngine` | Evaluates indicators, patterns, and severity |
 | `scanService` / `repositoryScanner` | File fetching and scanning orchestration |
 | `configLoader` | Merges org/repo YAML with policy packs |
 | `metricsService` | Persists scan metrics to PostgreSQL |
@@ -277,6 +285,7 @@ Redis ── BullMQ job queue
 | `usageMeteringService` | Usage events for billing/analytics |
 | `dashboardMetricsService` | Aggregations for the governance dashboard |
 
+---
 
 ## Governance dashboard
 
@@ -301,6 +310,7 @@ npm run dev
 
 Set `VITE_API_BASE_URL=http://localhost:3000` in `dashboard/.env` (or rely on the default). Ensure `CORS_ORIGIN` on the server includes `http://localhost:5173`.
 
+---
 
 ## REST API
 
@@ -328,6 +338,7 @@ When `METRICS_ENABLED=true` and `DATABASE_URL` is set, the server exposes:
 
 GitHub webhooks are served at `POST /api/github/webhooks`.
 
+---
 
 ## Environment variables
 
@@ -336,8 +347,8 @@ Create a `.env` file in the project root (see `.env.example` if present, or use 
 | Variable | Required | Description |
 | --- | --- | --- |
 | `APP_ID` | Yes | GitHub App ID |
-| `PRIVATE_KEY` | Yes | GitHub App private key (PEM) |
-| `WEBHOOK_SECRET` | Yes | GitHub webhook secret |
+| `PRIVATE_KEY` | Yes | GitHub App signing key (PEM) |
+| `WEBHOOK_SECRET` | Yes | GitHub webhook signing value |
 | `DATABASE_URL` | For metrics | PostgreSQL connection string (e.g. Neon) |
 | `METRICS_ENABLED` | No | Set to `true` to enable PostgreSQL metrics |
 | `REDIS_URL` | For queue | Redis URL for BullMQ async scans |
@@ -358,8 +369,9 @@ Create a `.env` file in the project root (see `.env.example` if present, or use 
 - `SCHEDULED_SCAN_REPO`
 - `SCHEDULED_SCAN_DEFAULT_BRANCH`
 
-Store these as GitHub Actions secrets (`COMPLIANCE_SHIELD_*`).
+Store these as GitHub Actions encrypted variables (`COMPLIANCE_SHIELD_*`).
 
+---
 
 ## GitHub App setup
 
@@ -371,6 +383,7 @@ Store these as GitHub Actions secrets (`COMPLIANCE_SHIELD_*`).
 
 For local development, use a tunnel (e.g. ngrok, Cloudflare Tunnel) to forward webhooks to `localhost:3000`.
 
+---
 
 ## Development
 
@@ -410,17 +423,19 @@ npm run build
 npm run worker
 ```
 
+---
 
 ## Security best practices
 
-If Compliance Shield detects a secret:
+If Compliance Shield detects an exposed credential:
 
 1. Remove it from the repository immediately.
 2. Rotate the exposed credential.
-3. Move secrets to secure storage (GitHub Secrets, HashiCorp Vault, AWS Secrets Manager, Azure Key Vault, etc.).
+3. Move sensitive values to secure storage (GitHub Actions encrypted variables, HashiCorp Vault, AWS Parameter Store, Azure Key Vault, etc.).
 
-Never commit `.env` files or private keys. Review override audit trails regularly in the dashboard.
+Never commit `.env` files or signing keys. Review override audit trails regularly in the dashboard.
 
+---
 
 ## Technology stack
 
@@ -436,12 +451,14 @@ Never commit `.env` files or private keys. Review override audit trails regularl
 | Dashboard | React 19, Vite, Recharts |
 | Testing | Jest |
 
+---
 
 ## Legal
 
 - [Privacy Policy](PRIVACY.md)
 - [Terms of Service](TERMS.md)
 
+---
 
 ## Contributing
 
@@ -452,11 +469,15 @@ Contributions are welcome.
 3. Ensure `npm test` passes.
 4. Submit a pull request.
 
+When updating documentation, avoid embedding literal credential patterns or banned indicator strings that the scanner flags in this repository's [`.compliance-shield.yml`](.compliance-shield.yml).
+
+---
 
 ## License
 
 This project is licensed under the MIT License.
 
+---
 
 ## Support
 
