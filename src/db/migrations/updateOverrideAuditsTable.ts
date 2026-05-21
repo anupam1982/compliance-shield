@@ -13,5 +13,11 @@ export async function updateOverrideAuditsTable(): Promise<void> {
 
     alter table override_audits
     add column if not exists status text not null default 'ACTIVE';
+
+    alter table override_audits
+    add column if not exists installation_id bigint;
+
+    alter table override_audits
+    add column if not exists account_login text;
   `);
 }

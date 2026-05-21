@@ -17,6 +17,8 @@ export interface ScanMetricInput {
   mediumCount?: number;
   lowCount?: number;
   riskScore?: number;
+  installationId?: number;
+  accountLogin?: string;
 } 
 
 export async function recordScanMetric(input: ScanMetricInput): 
@@ -50,12 +52,14 @@ Promise<number | undefined> {
         high_count,
         medium_count,
         low_count,
-        risk_score
+        risk_score,
+        installation_id,
+        account_login
       )
       values (
         $1, $2, $3, $4, $5,
         $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15
+        $11, $12, $13, $14, $15, $16, $17
       )
       returning id
       `,
@@ -74,7 +78,9 @@ Promise<number | undefined> {
         input.highCount ?? 0,
         input.mediumCount ?? 0,
         input.lowCount ?? 0,
-        input.riskScore ?? 0
+        input.riskScore ?? 0,
+        input.installationId ?? null,
+        input.accountLogin ?? null,
       ]
     );
     return result.rows[0].id as number;

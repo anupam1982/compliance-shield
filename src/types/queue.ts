@@ -4,4 +4,5 @@ export interface RepositoryScanJob {
   prNumber: number;
   triggeredBy: string;
   installationId?: number;
+  accountLogin?: string;
 }

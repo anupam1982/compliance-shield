@@ -11,6 +11,7 @@ import {
 import { recordScanMetric } from "../services/metricsService";
 import { persistViolations } from "../services/violationPersistenceService";
 import { formatViolationWithSuggestion } from "../utils/autofixSuggestions";
+import { recordUsageEvent } from "../services/usageMeteringService";
 
 const worker = new Worker<RepositoryScanJob>(
   "compliance-scans",
@@ -22,7 +23,8 @@ const worker = new Worker<RepositoryScanJob>(
       repo,
       prNumber,
       triggeredBy,
-      installationId
+      installationId,
+      accountLogin
     } = job.data;
 
     if (!installationId) {
@@ -112,6 +114,20 @@ const worker = new Worker<RepositoryScanJob>(
         result.violations
       );
     }
+    await recordUsageEvent({
+      installationId,
+      accountLogin,
+      owner,
+      repo,
+      eventType: "scan_completed",
+      metadata: {
+        prNumber,
+        triggeredBy,
+        violationsFound: result.violations.length,
+        scannedFiles: result.scannedFiles,
+        riskScore
+      }
+    });
 
     const formattedViolations =
       result.violations.length === 0
@@ -145,17 +161,36 @@ ${formattedViolations}
     );
   },
   {
-    connection: redisConnection
+    connection: redisConnection,
+    lockDuration: 120000,
+    concurrency: 2
   }
 );
 
-worker.on("completed", (job) => {
+worker.on("completed", async (job, err) => {
   console.log(`Job completed ${job.id}`);
 });
 
-worker.on("failed", (job, err) => {
-  console.error(
-    `Job failed ${job?.id}`,
-    err
-  );
+worker.on("failed", async (job, err) => {
+  console.error("Scan job failed", {
+    jobId: job?.id,
+    attemptsMade: job?.attemptsMade,
+    data: job?.data,
+    error: err.message
+  });
+
+  if (job?.data) {
+    await recordUsageEvent({
+      installationId: job.data.installationId,
+      accountLogin: job.data.accountLogin,
+      owner: job.data.owner,
+      repo: job.data.repo,
+      eventType: "scan_failed",
+      metadata: {
+        prNumber: job.data.prNumber,
+        triggeredBy: job.data.triggeredBy,
+        error: err.message
+      }
+    });
+  }
 });
