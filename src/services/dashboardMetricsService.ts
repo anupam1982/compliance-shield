@@ -1,4 +1,36 @@
 import { getPostgresPool } from "../db/postgres";
+import {
+  getMostRiskyRepositories,
+  getImprovingRepositories,
+  getRecurringViolations,
+  getRepositoryRiskTrend,
+  getGovernanceDrift
+} from "./repositoryRiskLearningService";
+
+
+export async function getRepositoryRiskLearning() {
+  const [
+    riskyRepos,
+    improvingRepos,
+    recurringViolations,
+    riskTrend,
+    governanceDrift
+  ] = await Promise.all([
+    getMostRiskyRepositories(),
+    getImprovingRepositories(),
+    getRecurringViolations(),
+    getRepositoryRiskTrend(),
+    getGovernanceDrift()
+  ]);
+
+  return {
+    riskyRepos,
+    improvingRepos,
+    recurringViolations,
+    riskTrend,
+    governanceDrift
+  };
+}
 
 export async function getRecentScans(limit = 20) {
   const pool = getPostgresPool();

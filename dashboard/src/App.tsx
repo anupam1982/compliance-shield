@@ -9,6 +9,7 @@ import {
   ResponsiveContainer
 } from "recharts";
 import "./App.css";
+import { fetchRepoRiskLearning } from "./api";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
@@ -120,6 +121,50 @@ interface GovernanceDebt {
   level: string;
 }
 
+interface RepoRiskLearning {
+  riskyRepositories: {
+    owner: string;
+    repo: string;
+    avg_risk: number;
+    max_risk: number;
+    total_scans: number;
+  }[];
+
+  improvingRepositories: {
+    owner: string;
+    repo: string;
+    previous_risk: number;
+    latest_risk: number;
+    improvement: number;
+  }[];
+
+  recurringViolations: {
+    severity: string;
+    indicator: string;
+    occurrences: number;
+  }[];
+
+  riskTrend: {
+    day: string;
+    avg_risk: number;
+  }[];
+
+  governanceDrift: {
+    owner: string;
+    repo: string;
+    override_count: number;
+    avg_risk: number;
+  }[];
+}
+
+interface UsageSummaryItem {
+  account_login: string;
+  event_type: string;
+  event_count: number;
+  total_quantity: number;
+  last_event_at: string;
+}
+
 async function fetchData<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`);
 
@@ -150,6 +195,8 @@ function App() {
     null
   );
   const [governanceDebt, setGovernanceDebt] = useState<GovernanceDebt | null>(null);
+  const [riskLearning, setRiskLearning] = useState<RepoRiskLearning | null>(null);
+  const [usageSummary, setUsageSummary] = useState<UsageSummaryItem[]>([]);
 
   async function openScanDetails(scanId: number) {
     try {
@@ -183,7 +230,9 @@ function App() {
         leaderboardData,
         orgPostureData,
         overrideSummaryData,
-        governanceDebtData
+        governanceDebtData,
+        riskLearningData,
+        usageSummaryData
       ] = await Promise.all([
         fetchData<Summary>("/api/metrics/summary"),
         fetchData<Scan[]>("/api/metrics/scans"),
@@ -194,7 +243,9 @@ function App() {
         fetchData<RepositoryLeaderboardItem[]>("/api/metrics/repo-leaderboard"),
         fetchData<OrgPosture>("/api/metrics/org-posture"),
         fetchData<OverrideGovernanceSummary>("/api/metrics/override-summary"),
-        fetchData<GovernanceDebt>("/api/metrics/governance-debt")
+        fetchData<GovernanceDebt>("/api/metrics/governance-debt"),
+        fetchRepoRiskLearning(),
+        fetchData<UsageSummaryItem[]>("/api/metrics/usage-summary")
       ]);
       
       setSummary(summaryData);
@@ -207,6 +258,8 @@ function App() {
       setOrgPosture(orgPostureData);
       setOverrideSummary(overrideSummaryData);
       setGovernanceDebt(governanceDebtData);
+      setRiskLearning(riskLearningData);
+      setUsageSummary(usageSummaryData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard");
     }
@@ -629,7 +682,102 @@ function App() {
 {scanDetailsLoading && (
   <div className="loading-toast">Loading scan details...</div>
 )}
-    </main>
+
+{riskLearning && (
+  <section className="panel">
+    <div className="panel-header">
+      <div>
+        <p className="eyebrow">AI Risk Learning</p>
+        <h2>Repository Risk Intelligence</h2>
+      </div>
+    </div>
+
+    <div className="learning-grid">
+      <div className="learning-card">
+        <h3>Most Risky Repositories</h3>
+        {riskLearning.riskyRepositories.map((item) => (
+          <p key={`${item.owner}-${item.repo}`}>
+            <strong>{item.owner}/{item.repo}</strong> — Avg Risk{" "}
+            {item.avg_risk}/100
+          </p>
+        ))}
+      </div>
+
+      <div className="learning-card">
+        <h3>Improving Repositories</h3>
+        {riskLearning.improvingRepositories.length === 0 ? (
+          <p>No improving repositories yet.</p>
+        ) : (
+          riskLearning.improvingRepositories.map((item) => (
+            <p key={`${item.owner}-${item.repo}`}>
+              <strong>{item.owner}/{item.repo}</strong> improved by{" "}
+              {item.improvement}
+            </p>
+          ))
+        )}
+      </div>
+
+      <div className="learning-card">
+        <h3>Recurring Violations</h3>
+        {riskLearning.recurringViolations.map((item) => (
+          <p key={`${item.severity}-${item.indicator}`}>
+            <strong>{item.severity}</strong> — {item.indicator}:{" "}
+            {item.occurrences}
+          </p>
+        ))}
+      </div>
+
+      <div className="learning-card">
+        <h3>Governance Drift</h3>
+        {riskLearning.governanceDrift.map((item) => (
+          <p key={`${item.owner}-${item.repo}`}>
+            <strong>{item.owner}/{item.repo}</strong> — Overrides:{" "}
+            {item.override_count}
+          </p>
+        ))}
+      </div>
+    </div>
+  </section>
+)}
+
+<section className="panel">
+  <div className="panel-header">
+    <div>
+      <p className="eyebrow">SaaS Usage</p>
+      <h2>Tenant Usage Summary</h2>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Account</th>
+        <th>Event</th>
+        <th>Count</th>
+        <th>Total Qty</th>
+        <th>Last Event</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {usageSummary.map((item) => (
+        <tr key={`${item.account_login}-${item.event_type}`}>
+          <td>{item.account_login}</td>
+          <td>{item.event_type}</td>
+          <td>{item.event_count}</td>
+          <td>{item.total_quantity}</td>
+          <td>
+            {item.last_event_at
+              ? new Date(item.last_event_at).toLocaleString()
+              : "-"}
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</section>
+
+</main>
   );
 }
 

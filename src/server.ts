@@ -24,7 +24,8 @@ import {
 import { runMigrations } from "./db/migrations/runMigrations";
 import { Probot, createNodeMiddleware } from "probot";
 import complianceShieldApp from "./app";
-
+import { getRepositoryRiskLearning } from "./services/dashboardMetricsService";
+import { getUsageSummary } from "./services/usageAnalyticsService";
 
 const app = express();
 const probot = new Probot({
@@ -243,6 +244,33 @@ app.get("/api/metrics/governance-debt", async (_req, res) => {
 
   return res.json({
     data: debt
+  });
+});
+
+app.get(
+  "/api/metrics/repo-risk-learning",
+  async (_req, res) => {
+    try {
+      const data =
+        await getRepositoryRiskLearning();
+
+      res.json(data);
+    } catch (error) {
+      console.error(error);
+
+      res.status(500).json({
+        error:
+          "Failed to load repository risk learning"
+      });
+    }
+  }
+);
+
+app.get("/api/metrics/usage-summary", async (_req, res) => {
+  const data = await getUsageSummary();
+
+  return res.json({
+    data
   });
 });
 
