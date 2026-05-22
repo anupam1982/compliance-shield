@@ -19,7 +19,8 @@
         "test:db": "ts-node src/scripts/testDbConnection.ts",
         "health:server": "ts-node src/server.ts",
         "migrate": "ts-node src/scripts/runMigrations.ts",
-        "worker": "node lib/workers/scanWorker.js"
+        "worker": "node lib/workers/scanWorker.js",
+        "ai-worker": "node lib/workers/aiCommandWorker.js"
     },
     "dependencies": {
         "@octokit/auth-app": "^8.2.0",
